@@ -1,0 +1,156 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg: #f4f5f2;
+  --card: #ffffff;
+  --card-2: #eef1ec;
+  --ink: #18201d;
+  --muted: #5b6862;
+  --line: #dde2dc;
+  --brand: #0f766e;
+  --brand-ink: #ffffff;
+  --brand-soft: #d6efe9;
+  /* Konsekventa färger: energi, protein, träning, vikt */
+  --kcal: #c2610c;
+  --kcal-soft: #fbe7d3;
+  --protein: #1d64b8;
+  --protein-soft: #dbe8f8;
+  --train: #18804a;
+  --train-soft: #d8f0e1;
+  --weight: #7b4bc4;
+  --weight-soft: #ebe2f8;
+  --warn: #9a5b00;
+  --warn-soft: #fdf1d8;
+  --danger: #b4232f;
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #0b1210;
+  --card: #141e1b;
+  --card-2: #1b2824;
+  --ink: #e9efec;
+  --muted: #9fb0a8;
+  --line: #2a3833;
+  --brand: #2bb3a3;
+  --brand-ink: #04201c;
+  --brand-soft: #123631;
+  --kcal: #c96f2a;
+  --kcal-soft: #3a2614;
+  --protein: #5796e0;
+  --protein-soft: #142a44;
+  --train: #3aa86e;
+  --train-soft: #133523;
+  --weight: #a07fdc;
+  --weight-soft: #2a1f3f;
+  --warn: #f0b85a;
+  --warn-soft: #36290f;
+  --danger: #f2707b;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-card: var(--card);
+  --color-card-2: var(--card-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-soft: var(--brand-soft);
+  --color-kcal: var(--kcal);
+  --color-kcal-soft: var(--kcal-soft);
+  --color-protein: var(--protein);
+  --color-protein-soft: var(--protein-soft);
+  --color-train: var(--train);
+  --color-train-soft: var(--train-soft);
+  --color-weight: var(--weight);
+  --color-weight-soft: var(--weight-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+@layer base {
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 17px;
+  line-height: 1.4;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+/* iOS zoomar in på fält med textstorlek under 16 px – undvik det. */
+input, select, textarea, button {
+  font: inherit;
+  font-size: max(16px, 1em);
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+.pt-safe { padding-top: max(env(safe-area-inset-top), 0px); }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+.pb-nav { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
+.bottom-nav-offset { bottom: calc(76px + env(safe-area-inset-bottom)); }
+
+.field {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  padding: 10px 12px;
+  appearance: none;
+}
+.field:focus { outline: 2px solid var(--brand); outline-offset: 0; border-color: transparent; }
+select.field {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23889590' stroke-width='2' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+}
+
+}
+
+@keyframes pop-in { from { transform: translateY(12px); opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes sheet-in { from { transform: translateY(100%) } to { transform: none } }
+@keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
+.anim-pop { animation: pop-in .22s ease-out; }
+.anim-sheet { animation: sheet-in .24s cubic-bezier(.2,.8,.2,1); }
+.anim-fade { animation: fade-in .18s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
+
+.tabular { font-variant-numeric: tabular-nums; }
+
+@layer base {
+  /* Gridceller får krympa – annars kan horisontellt scrollande rader tänja ut hela sidan. */
+  .grid > * { min-width: 0; }
+}
+
+body[data-hide-nav] nav[aria-label="Huvudmeny"] { display: none; }
+/* Utan bottenmeny ligger en egen knapprad längst ner – lägg bekräftelser ovanför den. */
+body[data-hide-nav] .bottom-nav-offset { bottom: calc(130px + env(safe-area-inset-bottom)); }
