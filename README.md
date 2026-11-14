@@ -2,6 +2,8 @@
 
 En personlig kost- och träningsdagbok byggd som en Progressive Web App (PWA) för iPhone. Appen är på svenska, fungerar offline, lagrar allt lokalt på enheten och är gjord för att användas flera gånger om dagen – snabbt och med en hand.
 
+**Öppna appen:** <https://hagnelius.github.io/dagbok/> – öppna i Safari på iPhone och välj Dela → Lägg till på hemskärmen.
+
 **Fokus:** viktnedgång med bibehållen muskelmassa, bättre kondition och fotbollsform. Appen visar trender och veckosnitt snarare än att bedöma enskilda dagar.
 
 ---
