@@ -70,8 +70,8 @@ export default function SettingsPage({ section }: { section?: string }) {
           <fieldset className="grid gap-2">
             <legend className="sr-only">Hantering av träningskalorier</legend>
             {([
-              ['separat', 'Visa separat', 'Läggs inte till matbudgeten. Din normala träning ingår redan i grundmålet. (Rekommenderas)'],
-              ['andel', 'Lägg till en andel', 'En vald andel av den uppskattade förbrukningen läggs till.'],
+              ['separat', 'Visa separat', 'Läggs inte till matbudgeten. Din normala träning ingår då i stället i grundmålet.'],
+              ['andel', 'Lägg till en andel', 'En vald andel av den uppskattade förbrukningen fyller en egen träningsstapel när du ätit upp grundmålet. (Standard: 75 %)'],
               ['alla', 'Lägg till allt', 'Hela uppskattningen läggs till. Planerad träning tas då bort ur grundmålet.'],
             ] as Array<[ExerciseCalorieMode, string, string]>).map(([v, l, h]) => (
               <label key={v} className={cx('flex gap-3 rounded-2xl border p-3 min-h-14 cursor-pointer', settings.exerciseCalorieMode === v ? 'border-brand bg-brand-soft' : 'border-line')}>
@@ -83,7 +83,7 @@ export default function SettingsPage({ section }: { section?: string }) {
           {settings.exerciseCalorieMode === 'andel' && (
             <div className="mt-3">
               <label htmlFor="pct" className="font-medium">Andel: {settings.exerciseCaloriePercent} %</label>
-              <input id="pct" type="range" min={10} max={90} step={10} value={settings.exerciseCaloriePercent} onChange={(e) => saveSettings({ exerciseCaloriePercent: Number(e.target.value) })} className="w-full h-11 accent-[var(--brand)]" />
+              <input id="pct" type="range" min={10} max={100} step={5} value={settings.exerciseCaloriePercent} onChange={(e) => saveSettings({ exerciseCaloriePercent: Number(e.target.value) })} className="w-full h-11 accent-[var(--brand)]" />
             </div>
           )}
         </Card>

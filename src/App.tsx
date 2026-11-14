@@ -5,6 +5,7 @@ import { navigate, useRoute } from './router'
 import { useProfile, useSettings, useToday, useOnline } from './hooks'
 import { isDateKey } from './lib/dates'
 import { db } from './lib/db'
+import { migrateSettings } from './lib/repo'
 import DayPage from './pages/DayPage'
 import Onboarding from './pages/Onboarding'
 import AddFoodPage from './pages/AddFoodPage'
@@ -41,6 +42,7 @@ export default function App() {
   const online = useOnline()
   const [addOpen, setAddOpen] = useState(false)
   const demo = useLiveQuery(() => db.entries.filter((e) => !!e.isDemo).count(), [])
+  useEffect(() => { void migrateSettings() }, [profile?.id])
 
   if (profile === undefined) return <div className="min-h-dvh" aria-busy="true" />
   if (profile === null) return <ToastProvider><Onboarding /></ToastProvider>

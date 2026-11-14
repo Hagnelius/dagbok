@@ -9,6 +9,8 @@ export interface FeedbackInput {
   budget: number
   protein: number
   proteinGoal: number
+  /** Extrakalorier från träning som ingår i budgeten (visas som förklaring). */
+  exerciseExtra?: number
   /** Senaste 7 dagarnas statistik (exklusive idag). */
   week?: PeriodStats
 }
@@ -25,7 +27,7 @@ export function dailyFeedback(i: FeedbackInput): string[] {
   }
   const remainingKcal = i.budget - i.eaten
   const remainingProtein = Math.max(0, Math.round(i.proteinGoal - i.protein))
-  const base = `${i.isToday ? 'Du har registrerat' : 'Registrerat:'} ${fmtInt(i.eaten)} av ${fmtInt(i.budget)} kcal och ${fmtInt(i.protein)} av ${fmtInt(i.proteinGoal)} g protein.`
+  const base = `${i.isToday ? 'Du har registrerat' : 'Registrerat:'} ${fmtInt(i.eaten)} av ${fmtInt(i.budget)} kcal${i.exerciseExtra ? ` (inkl. ${fmtInt(i.exerciseExtra)} från träning)` : ''} och ${fmtInt(i.protein)} av ${fmtInt(i.proteinGoal)} g protein.`
   out.push(base)
 
   const weekNear = i.week?.kcalDiffFromGoal !== undefined && i.week.avgKcalGoal

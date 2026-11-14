@@ -84,6 +84,28 @@ export interface DayBudget {
   remaining: number
 }
 
+export interface CalorieBars {
+  /** Kalorier som fyller grundmålets stapel (högst grundmålet). */
+  baseUsed: number
+  /** Kalorier över grundmålet som fyller träningsstapeln (högst träningsutrymmet). */
+  extraUsed: number
+  /** Träningsutrymmet: den del av uppskattad träning som får ätas upp. */
+  extraCap: number
+  /** Kalorier över grundmål + träningsutrymme. */
+  over: number
+}
+
+/**
+ * Fördelar dagens intag på två staplar: först fylls grundmålet, därefter träningsstapeln
+ * med de extra kalorier som träningen gett utrymme för.
+ */
+export function calorieBars(eaten: number, baseKcal: number, extraCap: number): CalorieBars {
+  const cap = Math.max(0, Math.round(extraCap))
+  const baseUsed = Math.min(eaten, baseKcal)
+  const beyond = Math.max(0, eaten - baseKcal)
+  return { baseUsed, extraUsed: Math.min(beyond, cap), extraCap: cap, over: Math.max(0, beyond - cap) }
+}
+
 export function dayBudget(entries: FoodEntry[], workouts: Workout[], baseKcal: number, mode: ExerciseCalorieMode, percent: number): DayBudget {
   const eaten = sumNutrition(entries).kcal
   const ex = workoutKcal(workouts).total

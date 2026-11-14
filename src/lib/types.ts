@@ -287,12 +287,14 @@ export interface Settings {
   lastBackupAt?: string
   installHintDismissed: boolean
   demoMode: boolean
+  /** Version av inställningsformatet – används för engångsmigreringar. */
+  settingsVersion?: number
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   id: 'settings',
-  exerciseCalorieMode: 'separat',
-  exerciseCaloriePercent: 50,
+  exerciseCalorieMode: 'andel',
+  exerciseCaloriePercent: 75,
   weighInPolicy: 'forsta',
   theme: 'system',
   aiProvider: 'lokal',
@@ -300,6 +302,7 @@ export const DEFAULT_SETTINGS: Settings = {
   speechRecognition: false,
   installHintDismissed: false,
   demoMode: false,
+  settingsVersion: 2,
 }
 
 /** Säkerhetskopia – format för JSON-export/import. */

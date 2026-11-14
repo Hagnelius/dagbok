@@ -26,7 +26,7 @@ En personlig kost- och träningsdagbok byggd som en Progressive Web App (PWA) f�
 
 | Vy | Innehåll |
 |---|---|
-| **Idag** | Kalorier och protein mot dagens mål med progressindikatorer, kvarvarande värden, träning, senaste vikt, kort neutral återkoppling, 7-dagarssnitt, snabbknappar, dagens måltider (frukost, lunch, middag, mellanmål, dryck), träningspass, mått och dagsanteckning. Bläddra mellan dagar med pilarna. |
+| **Idag** | Kalorier och protein mot dagens mål med progressindikatorer, en träningsstapel för extrakalorier från dagens träning, kvarvarande värden, träning, senaste vikt, kort neutral återkoppling, 7-dagarssnitt, snabbknappar, dagens måltider (frukost, lunch, middag, mellanmål, dryck), träningspass, mått och dagsanteckning. Bläddra mellan dagar med pilarna. |
 | **Lägg till (+)** | Snabbregistrera · Mat · Träning · Vikt och mått · Skriv eller prata in. |
 | **Snabbregistrera** | Mest använda överst (lär sig av lokal användning), standardmåltider, favoritlivsmedel, recept och senast registrerade. Ett tryck på **+** lägger till direkt; kryssa flera och justera antal med −/+ för att lägga till allt på en gång. |
 | **Mat** | Sök (egna livsmedel, tidigare registreringar och en inbyggd lista med ~110 vanliga livsmedel), manuell registrering och kopiering av måltider eller hela dagar från tidigare dagar. |
@@ -233,7 +233,7 @@ All logik finns i `src/lib/` och visas transparent i appen.
 
 **Byte av mängd eller enhet** (`units.ts`): näringsvärdena räknas om proportionellt. Mellan volymenheter (dl, msk = 15 ml, tsk = 5 ml, krm, ml) räknas det direkt; mellan t.ex. st och g används livsmedelslistans gramvikter. Går det inte (okänt livsmedel från st till g) visas en uppmaning att kontrollera värdena. Egna inskrivna värden blir nytt utgångsläge.
 
-**Träningskalorier** (`exercise.ts`): nettoförbrukning = (MET − 1) × kroppsvikt × timmar, med MET-värden per aktivitet och intensitet. Visas alltid som uppskattning (≈) om du inte angett eget värde. Inställningen styr om de visas separat (standard), läggs till med vald andel eller läggs till helt.
+**Träningskalorier** (`exercise.ts`): nettoförbrukning = (MET − 1) × kroppsvikt × timmar, med MET-värden per aktivitet och intensitet. Visas alltid som uppskattning (≈) om du inte angett eget värde. Inställningen styr om de visas separat, läggs till med vald andel (standard 75 %) eller läggs till helt. Den tillagda delen visas som en egen träningsstapel: grundmålet fylls först, därefter träningsstapeln, och det som går över båda visas som överskott.
 
 **Snitt och trender** (`stats.ts`): dagar utan registrerad mat räknas **inte** som nolldagar. Pågående dag räknas inte in i veckosnitt om du inte väljer det. Vid flera vägningar samma dag används dagens första (eller senaste/medel enligt inställning). Viktförändringar jämför rullande 7-dagarssnitt.
 
@@ -298,7 +298,7 @@ Användningsfrekvens (`useCount`, `lastUsedAt`) sparas på mallar och livsmedel 
 **Antaganden och designval**
 
 - Hash-adresser (`#/…`) i stället för vanliga sökvägar, så att appen fungerar på vilken statisk hosting som helst och offline.
-- Standard för träningskalorier är *visa separat*. Din vanliga träning (pass per vecka) ingår då i stället i grundmålet.
+- Standard för träningskalorier är *lägg till en andel* med 75 %. Den andelen av dagens uppskattade träning blir en egen grön stapel under protein, som fylls först när du ätit upp grundmålet. Planerad träning räknas då inte in i grundmålet. Väljer du *visa separat* ingår din vanliga träning i stället i grundmålet och stapeln visas inte.
 - Vid flera vägningar samma dag används dagens första som standard – den är mest jämförbar mellan dagar.
 - En dag räknas som registrerad om den har minst en matpost (även om summan är 0 kcal).
 - Ett par startfavoriter (proteinshake, banan, *Min vanliga frukost* m.fl.) och träningsmallar skapas efter introduktionen. De är vanliga, redigerbara favoriter – inte demodata.

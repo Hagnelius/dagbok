@@ -126,3 +126,23 @@ describe('AI-flöde', () => {
     expect(() => normalizeAiResult('inget json här')).toThrow()
   })
 })
+
+describe('migrering av inställningar', () => {
+  it('byter från "visa separat" till 75 % och räknar om målet utan planerad träning', async () => {
+    const { migrateSettings, getSettings, saveProfileAndGoal } = await import('./repo')
+    const { calculateTargets } = await import('./calc')
+    const profile = { id: 'me' as const, age: 45, sex: 'man' as const, heightCm: 182, startWeightKg: 95, goalWeightKg: 85, rateKgPerWeek: 0.5, activityLevel: 'latt' as const, trainingSessionsPerWeek: 3, mainGoals: [], healthNotes: '', trackedNutrients: ['kcal' as const, 'protein' as const], createdAt: '', updatedAt: '' }
+    const old = calculateTargets({ ...profile, weightKg: 95, exerciseMode: 'separat' })
+    await saveProfileAndGoal(profile, { mode: 'beraknat', kcal: old.kcal, protein: old.protein, calculation: old.calculation }, '2026-01-01')
+    await db.settings.put({ ...(await getSettings()), exerciseCalorieMode: 'separat', settingsVersion: undefined })
+    await migrateSettings()
+    const s = await getSettings()
+    expect(s).toMatchObject({ exerciseCalorieMode: 'andel', exerciseCaloriePercent: 75, settingsVersion: 2 })
+    const goals = (await db.goals.toArray()).sort((a, b) => a.validFrom.localeCompare(b.validFrom))
+    expect(goals).toHaveLength(2)
+    expect(goals[1].kcal).toBeLessThan(goals[0].kcal)
+    expect(goals[1].calculation?.plannedTrainingKcalPerDay).toBe(0)
+    await migrateSettings() // körs bara en gång
+    expect(await db.goals.count()).toBe(2)
+  })
+})

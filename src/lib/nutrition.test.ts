@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dayBudget, exerciseAdjustment, recipeNutrition, scale, sumNutrition } from './nutrition'
+import { calorieBars, dayBudget, exerciseAdjustment, recipeNutrition, scale, sumNutrition } from './nutrition'
 import type { FoodEntry, Workout } from './types'
 
 const e = (kcal: number, protein: number, fat?: number): FoodEntry => ({
@@ -46,5 +46,20 @@ describe('träningskalorier i budgeten', () => {
   it('budget = grundmål + justering', () => {
     const b = dayBudget([e(1650, 132)], [w], 2100, 'andel', 50)
     expect(b).toMatchObject({ baseKcal: 2100, exerciseKcal: 400, adjustment: 200, budget: 2300, eaten: 1650, remaining: 650 })
+  })
+})
+
+describe('träningsstapeln', () => {
+  it('fyller först grundmålet', () => {
+    expect(calorieBars(1800, 2000, 300)).toEqual({ baseUsed: 1800, extraUsed: 0, extraCap: 300, over: 0 })
+  })
+  it('kalorier över grundmålet fyller träningsstapeln', () => {
+    expect(calorieBars(2150, 2000, 300)).toEqual({ baseUsed: 2000, extraUsed: 150, extraCap: 300, over: 0 })
+  })
+  it('över både grundmål och träning visas som överskott', () => {
+    expect(calorieBars(2400, 2000, 300)).toEqual({ baseUsed: 2000, extraUsed: 300, extraCap: 300, over: 100 })
+  })
+  it('75 % av träningen ger utrymmet', () => {
+    expect(exerciseAdjustment(400, 'andel', 75)).toBe(300)
   })
 })

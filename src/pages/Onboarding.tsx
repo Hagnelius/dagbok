@@ -8,7 +8,7 @@ import { addMeasurement, getSettings, saveProfileAndGoal } from '../lib/repo'
 import { seedStarterLibrary } from '../lib/demo'
 import { nowIso } from '../lib/db'
 import { navigate } from '../router'
-import type { ActivityLevel, ExerciseCalorieMode, Goal, MainGoal, NutrientKey, Profile, Sex } from '../lib/types'
+import { DEFAULT_SETTINGS, type ActivityLevel, type ExerciseCalorieMode, type Goal, type MainGoal, type NutrientKey, type Profile, type Sex } from '../lib/types'
 
 const RATES = [0, 0.25, 0.5, 0.75, 1]
 
@@ -33,7 +33,7 @@ export default function Onboarding(props: Props) {
   const [manual, setManual] = useState(currentGoal?.mode === 'manuellt')
   const [mKcal, setMKcal] = useState(currentGoal ? String(currentGoal.kcal) : '')
   const [mProtein, setMProtein] = useState(currentGoal ? String(currentGoal.protein) : '')
-  const [exerciseMode] = useState<ExerciseCalorieMode>(props.exerciseMode ?? 'separat')
+  const [exerciseMode] = useState<ExerciseCalorieMode>(props.exerciseMode ?? DEFAULT_SETTINGS.exerciseCalorieMode)
   const [showErrors, setShowErrors] = useState(false)
 
   const n = { age: parseNum(age), height: parseNum(height), weight: parseNum(weight), goal: parseNum(goalWeight) }

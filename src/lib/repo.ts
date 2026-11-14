@@ -34,6 +34,19 @@ export async function saveProfileAndGoal(profile: Profile, goal: Omit<Goal, 'id'
   })
 }
 
+/**
+ * Engångsmigrering till inställningsversion 2: träningskalorier fyller en egen stapel med 75 %
+ * av uppskattningen. Grundmålet räknas om utan planerad träning så att den inte räknas två gånger.
+ */
+export async function migrateSettings(): Promise<void> {
+  const [row, profile] = await Promise.all([db.settings.get('settings'), getProfile()])
+  if (!profile || (row?.settingsVersion ?? 1) >= 2) return
+  const patch: Partial<Settings> = { settingsVersion: 2 }
+  if (!row || row.exerciseCalorieMode === 'separat') Object.assign(patch, { exerciseCalorieMode: 'andel', exerciseCaloriePercent: 75 })
+  await saveSettings(patch)
+  await recalcGoalIfCalculated()
+}
+
 /** Räknar om målet när t.ex. träningskaloriläget ändras (bara om målet är beräknat). */
 export async function recalcGoalIfCalculated(): Promise<void> {
   const [profile, settings, goals] = await Promise.all([getProfile(), getSettings(), db.goals.toArray()])

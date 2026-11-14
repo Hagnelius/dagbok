@@ -186,6 +186,7 @@ with sync_playwright() as p:
     page.goto(URL + "#/traning")
     page.get_by_role("button", name="Spara 60 min gym, medel").click()
     expect(page.get_by_text(re.compile(r"2 pass"))).to_be_visible()
+    expect(page.get_by_role("progressbar", name="Extrakalorier från träning")).to_be_visible()
 
     # --- Vikt ---
     page.goto(URL + "#/vikt")

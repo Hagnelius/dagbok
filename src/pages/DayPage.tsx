@@ -10,7 +10,7 @@ import { db } from '../lib/db'
 import { dailyFeedback } from '../lib/feedback'
 import { fmtInt, fmtKg, fmtDec } from '../lib/format'
 import { ACTIVITY_ICON, ACTIVITY_LABEL, INTENSITY_LABEL, MEAL_LABEL, unitText } from '../lib/labels'
-import { sumNutrition } from '../lib/nutrition'
+import { calorieBars, sumNutrition } from '../lib/nutrition'
 import { copyEntries, deleteEntry, saveDayNote, saveMealTemplate } from '../lib/repo'
 import { periodStats } from '../lib/stats'
 import { MEALS, type FoodEntry, type MealType, type Workout } from '../lib/types'
@@ -37,9 +37,9 @@ export default function DayPage({ date }: { date: string }) {
   if (!day) return <div aria-busy="true" className="min-h-dvh" />
   const { totals, budget, goal, entries, workouts, measurements, settings } = day
   const proteinGoal = goal?.protein ?? 0
-  const feedback = dailyFeedback({ isToday, isPast: date < today, entryCount: entries.length, eaten: totals.kcal, budget: budget.budget, protein: totals.protein, proteinGoal, week })
+  const feedback = dailyFeedback({ isToday, isPast: date < today, entryCount: entries.length, eaten: totals.kcal, budget: budget.budget, protein: totals.protein, proteinGoal, week, exerciseExtra: budget.adjustment })
   const tracked = profile?.trackedNutrients ?? ['kcal', 'protein']
-  const remaining = budget.remaining
+  const bars = calorieBars(totals.kcal, budget.baseKcal, budget.adjustment)
 
   return (
     <div>
@@ -68,15 +68,27 @@ export default function DayPage({ date }: { date: string }) {
           {goal ? (
             <>
               <div className="flex items-baseline justify-between gap-2">
-                <p className="tabular"><span className="text-[34px] font-bold leading-none">{fmtInt(totals.kcal)}</span> <span className="text-muted">av {fmtInt(budget.budget)} kcal</span></p>
-                <p className="text-right text-[15px] font-semibold tabular">{remaining >= 0 ? `${fmtInt(remaining)} kvar` : `${fmtInt(-remaining)} över`}</p>
+                <p className="tabular"><span className="text-[34px] font-bold leading-none">{fmtInt(totals.kcal)}</span> <span className="text-muted">av {fmtInt(budget.baseKcal)} kcal</span></p>
+                <p className="text-right text-[15px] font-semibold tabular">{totals.kcal <= budget.baseKcal ? `${fmtInt(budget.baseKcal - totals.kcal)} kvar` : bars.extraCap > 0 ? 'Mål nått' : `${fmtInt(totals.kcal - budget.baseKcal)} över`}</p>
               </div>
-              <div className="mt-2"><Progress color="kcal" value={totals.kcal} max={budget.budget} label="Kalorier" valueText={`${fmtInt(totals.kcal)} av ${fmtInt(budget.budget)} kcal`} /></div>
+              <div className="mt-2"><Progress color="kcal" value={bars.baseUsed} max={budget.baseKcal} label="Kalorier" valueText={`${fmtInt(totals.kcal)} av ${fmtInt(budget.baseKcal)} kcal`} /></div>
               <div className="flex items-baseline justify-between gap-2 mt-4">
                 <p className="tabular"><span className="text-xl font-bold">{fmtInt(totals.protein)}</span> <span className="text-muted">av {fmtInt(proteinGoal)} g protein</span></p>
                 <p className="text-[15px] font-semibold tabular">{totals.protein >= proteinGoal ? 'Mål nått' : `${fmtInt(proteinGoal - totals.protein)} g kvar`}</p>
               </div>
               <div className="mt-2"><Progress color="protein" value={totals.protein} max={proteinGoal} label="Protein" valueText={`${fmtInt(totals.protein)} av ${fmtInt(proteinGoal)} gram`} /></div>
+              {bars.extraCap > 0 && (
+                <div className="mt-4" data-testid="traningsstapel">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="tabular"><span className="text-xl font-bold">{fmtInt(bars.extraUsed)}</span> <span className="text-muted">av ≈ {fmtInt(bars.extraCap)} kcal från träning</span></p>
+                    <p className="text-[15px] font-semibold tabular text-right">
+                      {bars.over > 0 ? `${fmtInt(bars.over)} över` : bars.extraUsed === 0 ? 'Oanvänt' : `${fmtInt(bars.extraCap - bars.extraUsed)} kvar`}
+                    </p>
+                  </div>
+                  <div className="mt-2"><Progress color="train" value={bars.extraUsed} max={bars.extraCap} label="Extrakalorier från träning" valueText={`${fmtInt(bars.extraUsed)} av ${fmtInt(bars.extraCap)} kcal från träning använda`} /></div>
+                  <p className="text-sm text-muted mt-1">{settings.exerciseCalorieMode === 'alla' ? 'All' : `${settings.exerciseCaloriePercent} % av`} dagens uppskattade träning ({fmtInt(budget.exerciseKcal)} kcal). Fylls när du ätit mer än grundmålet.</p>
+                </div>
+              )}
               {(tracked.includes('fat') || tracked.includes('carbs')) && (
                 <p className="text-sm text-muted mt-3 tabular">
                   {tracked.includes('fat') && <>Fett {fmtInt(totals.fat)}{goal.fat ? ` / ${goal.fat}` : ''} g{totals.fatIncomplete && totals.count > 0 ? '*' : ''}</>}
