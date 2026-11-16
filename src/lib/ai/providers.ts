@@ -53,7 +53,12 @@ export const serverProvider: AiProvider = {
       }),
       signal: opts.signal,
     })
-    if (!res.ok) throw new Error(`Servern svarade med fel (${res.status}).`)
+    if (!res.ok) {
+      // Visa serverns förklaring om den finns, t.ex. "AI-tjänsten svarade 404: model not found".
+      let detail = ''
+      try { detail = String((await res.json())?.error ?? '') } catch { /* inget JSON-svar */ }
+      throw new Error(`Servern svarade med fel (${res.status})${detail ? `: ${detail}` : '.'}`)
+    }
     return normalizeAiResult(await res.json())
   },
 }

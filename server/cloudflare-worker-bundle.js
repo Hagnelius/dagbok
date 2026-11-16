@@ -53,6 +53,19 @@ ${photo ? 'Användarens kommentar till fotot' : 'Text'}:
 """${String(text).slice(0, 2000) || '(ingen kommentar)'}"""`
 }
 
+/** Begripligt fel från AI-tjänsten. Svaret från tjänsten innehåller aldrig användarens text. */
+async function serviceError(res) {
+  let detail = ''
+  try {
+    const t = await res.text()
+    try { const j = JSON.parse(t); detail = (Array.isArray(j) ? j[0] : j)?.error?.message ?? '' } catch { detail = t }
+  } catch { /* ignorera */ }
+  detail = String(detail).replace(/\s+/g, ' ').slice(0, 200)
+  console.error(`AI-tjänsten svarade ${res.status}: ${detail}`)
+  if (res.status === 429) return new Error('AI-tjänstens gratiskvot är slut för stunden – försök igen senare.')
+  return new Error(`AI-tjänsten svarade ${res.status}${detail ? `: ${detail}` : ''}`)
+}
+
 function extractJson(s) {
   const fence = /```(?:json)?\s*([\s\S]*?)```/i.exec(s)
   const body = fence ? fence[1] : s
@@ -69,7 +82,7 @@ async function callAnthropic(env, prompt, image) {
       ? [{ type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.data } }, { type: 'text', text: prompt }]
       : prompt }] }),
   })
-  if (!res.ok) throw new Error(`AI-tjänsten svarade ${res.status}`)
+  if (!res.ok) throw await serviceError(res)
   const data = await res.json()
   return data.content?.map((c) => c.text ?? '').join('') ?? ''
 }
@@ -87,7 +100,7 @@ async function callOpenAI(env, prompt, image, opts = {}) {
       ? [{ type: 'image_url', image_url: { url: `data:${image.mediaType};base64,${image.data}` } }, { type: 'text', text: prompt }]
       : prompt }] }),
   })
-  if (!res.ok) throw new Error(res.status === 429 ? 'AI-tjänstens gratiskvot är slut för stunden – försök igen senare.' : `AI-tjänsten svarade ${res.status}`)
+  if (!res.ok) throw await serviceError(res)
   const data = await res.json()
   return data.choices?.[0]?.message?.content ?? ''
 }
@@ -133,6 +146,7 @@ async function handle(method, headers, bodyText, env) {
     // Klienten validerar och rensar svaret igen innan det visas för granskning.
     return { status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify(extractJson(raw)) }
   } catch (e) {
+    console.error(`Tolkningen misslyckades (${e.name})`)
     return { status: 502, headers: cors, body: JSON.stringify({ error: e.message }) }
   }
 }

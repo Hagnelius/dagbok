@@ -44,15 +44,28 @@ test('Gemini: rätt adress, nyckel, modell och bild som data-URL', async () => {
 test('Gemini: slut på gratiskvot ger begripligt fel', async () => {
   const orig = globalThis.fetch
   globalThis.fetch = async () => new Response('{}', { status: 429 })
+  const origErr = console.error; console.error = () => {}
   try {
     const r = await handle('POST', h(), JSON.stringify({ text: 'kebab' }), { ALLOWED_ORIGIN: 'https://app.example', APP_TOKEN: 'hemlig', GEMINI_API_KEY: 'gk' })
     assert.equal(r.status, 502)
     assert.match(JSON.parse(r.body).error, /gratiskvot/)
-  } finally { globalThis.fetch = orig }
+  } finally { globalThis.fetch = orig; console.error = origErr }
 })
 test('paketerad Worker-fil är uppdaterad', async () => {
   const { buildWorkerBundle } = await import('../scripts/bundle-worker.mjs')
   const { readFile } = await import('node:fs/promises')
   const current = await readFile(new URL('./cloudflare-worker-bundle.js', import.meta.url), 'utf8')
   assert.equal(current, await buildWorkerBundle(), 'Kör: npm run bundle:worker')
+})
+test('felmeddelande från Gemini skickas vidare (utan användartext)', async () => {
+  const orig = globalThis.fetch
+  const origErr = console.error; console.error = () => {}
+  globalThis.fetch = async () => new Response(JSON.stringify([{ error: { code: 404, message: 'models/x is not found for API version v1beta', status: 'NOT_FOUND' } }]), { status: 404 })
+  try {
+    const r = await handle('POST', h(), JSON.stringify({ text: 'hemlig mat' }), { ALLOWED_ORIGIN: 'https://app.example', APP_TOKEN: 'hemlig', GEMINI_API_KEY: 'gk' })
+    assert.equal(r.status, 502)
+    const err = JSON.parse(r.body).error
+    assert.match(err, /404: models\/x is not found/)
+    assert.doesNotMatch(err, /hemlig mat/)
+  } finally { globalThis.fetch = orig; console.error = origErr }
 })
