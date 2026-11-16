@@ -63,15 +63,20 @@ async function callAnthropic(env, prompt, image) {
   return data.content?.map((c) => c.text ?? '').join('') ?? ''
 }
 
-async function callOpenAI(env, prompt, image) {
-  const res = await fetch(env.OPENAI_BASE_URL || 'https://api.openai.com/v1/chat/completions', {
+/** Googles Gemini via deras OpenAI-kompatibla gränssnitt (har en gratisnivå). */
+export const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'
+export const GEMINI_DEFAULT_MODEL = 'gemini-flash-latest'
+
+async function callOpenAI(env, prompt, image, opts = {}) {
+  const res = await fetch(opts.url || env.OPENAI_BASE_URL || 'https://api.openai.com/v1/chat/completions', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${env.OPENAI_API_KEY}` },
-    body: JSON.stringify({ model: env.AI_MODEL || 'gpt-4o-mini', response_format: { type: 'json_object' }, messages: [{ role: 'user', content: image
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${opts.key || env.OPENAI_API_KEY}` },
+    // Gemini får ingen response_format – prompten kräver ren JSON och svaret tolkas tolerant.
+    body: JSON.stringify({ model: opts.model || env.AI_MODEL || 'gpt-4o-mini', ...(opts.jsonMode === false ? {} : { response_format: { type: 'json_object' } }), messages: [{ role: 'user', content: image
       ? [{ type: 'image_url', image_url: { url: `data:${image.mediaType};base64,${image.data}` } }, { type: 'text', text: prompt }]
       : prompt }] }),
   })
-  if (!res.ok) throw new Error(`AI-tjänsten svarade ${res.status}`)
+  if (!res.ok) throw new Error(res.status === 429 ? 'AI-tjänstens gratiskvot är slut för stunden – försök igen senare.' : `AI-tjänsten svarade ${res.status}`)
   const data = await res.json()
   return data.choices?.[0]?.message?.content ?? ''
 }
@@ -110,7 +115,10 @@ export async function handle(method, headers, bodyText, env) {
   const weight = typeof input.weightKg === 'number' && input.weightKg > 20 && input.weightKg < 400 ? Math.round(input.weightKg) : undefined
   try {
     const prompt = buildPrompt(input.text, today, now, weight, !!image)
-    const raw = env.AI_PROVIDER === 'openai' ? await callOpenAI(env, prompt, image) : await callAnthropic(env, prompt, image)
+    const provider = env.AI_PROVIDER || (env.GEMINI_API_KEY ? 'gemini' : env.OPENAI_API_KEY && !env.ANTHROPIC_API_KEY ? 'openai' : 'anthropic')
+    const raw = provider === 'gemini'
+      ? await callOpenAI(env, prompt, image, { url: GEMINI_URL, key: env.GEMINI_API_KEY, model: env.AI_MODEL || GEMINI_DEFAULT_MODEL, jsonMode: false })
+      : provider === 'openai' ? await callOpenAI(env, prompt, image) : await callAnthropic(env, prompt, image)
     // Klienten validerar och rensar svaret igen innan det visas för granskning.
     return { status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify(extractJson(raw)) }
   } catch (e) {

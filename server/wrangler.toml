@@ -3,6 +3,8 @@ main = "cloudflare-worker.mjs"
 compatibility_date = "2026-11-01"
 
 [vars]
-ALLOWED_ORIGIN = "https://DITT-ANVANDARNAMN.github.io"
-AI_PROVIDER = "anthropic"
-# AI_MODEL = "ange en aktuell modell"
+ALLOWED_ORIGIN = "https://hagnelius.github.io"
+# AI_PROVIDER väljs automatiskt utifrån vilken nyckel som finns: GEMINI_API_KEY → gemini (gratisnivå),
+# ANTHROPIC_API_KEY → anthropic, OPENAI_API_KEY → openai. Sätt den bara om du vill tvinga ett val.
+# AI_PROVIDER = "gemini"
+# AI_MODEL = "gemini-flash-latest"   # standard för Gemini

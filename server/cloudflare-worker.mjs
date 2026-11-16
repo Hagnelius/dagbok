@@ -7,6 +7,6 @@ export default {
   async fetch(request, env) {
     const headers = Object.fromEntries(request.headers)
     const r = await handle(request.method, headers, request.method === 'POST' ? await request.text() : '', env)
-    return new Response(r.body, { status: r.status, headers: r.headers })
+    return new Response(r.status === 204 ? null : r.body, { status: r.status, headers: r.headers })
   },
 }

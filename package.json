@@ -14,7 +14,8 @@
     "test:e2e": "python3 e2e/smoke.py e2e-shots",
     "check": "npm run lint && npm run typecheck && npm test && vite build",
     "ai-server": "node server/node-server.mjs",
-    "icons": "python3 scripts/make-icons.py"
+    "icons": "python3 scripts/make-icons.py",
+    "bundle:worker": "node scripts/bundle-worker.mjs"
   },
   "dependencies": {
     "dexie": "^4.4.7",

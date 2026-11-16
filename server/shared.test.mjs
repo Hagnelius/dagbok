@@ -24,3 +24,35 @@ test('bild skickas till AI-tjänsten som bildinnehåll', async () => {
     assert.match(sent.messages[0].content[1].text, /bifogat foto/)
   } finally { globalThis.fetch = orig }
 })
+test('Gemini: rätt adress, nyckel, modell och bild som data-URL', async () => {
+  const orig = globalThis.fetch
+  let url, init
+  globalThis.fetch = async (u, i) => { url = u; init = i; return new Response(JSON.stringify({ choices: [{ message: { content: '```json\n{"foods":[{"name":"Kebab","amount":1,"unit":"portion","kcal":800,"protein":40}],"workouts":[]}\n```' } }] }), { status: 200 }) }
+  try {
+    const genv = { ALLOWED_ORIGIN: 'https://app.example', APP_TOKEN: 'hemlig', GEMINI_API_KEY: 'gk' }
+    const r = await handle('POST', h(), JSON.stringify({ text: 'kebab', image: { mediaType: 'image/jpeg', data: 'A'.repeat(200) } }), genv)
+    assert.equal(r.status, 200)
+    assert.equal(JSON.parse(r.body).foods[0].name, 'Kebab')
+    assert.match(url, /generativelanguage\.googleapis\.com\/v1beta\/openai\/chat\/completions/)
+    assert.equal(init.headers.authorization, 'Bearer gk')
+    const body = JSON.parse(init.body)
+    assert.equal(body.model, 'gemini-flash-latest')
+    assert.equal(body.response_format, undefined)
+    assert.match(body.messages[0].content[0].image_url.url, /^data:image\/jpeg;base64,/)
+  } finally { globalThis.fetch = orig }
+})
+test('Gemini: slut på gratiskvot ger begripligt fel', async () => {
+  const orig = globalThis.fetch
+  globalThis.fetch = async () => new Response('{}', { status: 429 })
+  try {
+    const r = await handle('POST', h(), JSON.stringify({ text: 'kebab' }), { ALLOWED_ORIGIN: 'https://app.example', APP_TOKEN: 'hemlig', GEMINI_API_KEY: 'gk' })
+    assert.equal(r.status, 502)
+    assert.match(JSON.parse(r.body).error, /gratiskvot/)
+  } finally { globalThis.fetch = orig }
+})
+test('paketerad Worker-fil är uppdaterad', async () => {
+  const { buildWorkerBundle } = await import('../scripts/bundle-worker.mjs')
+  const { readFile } = await import('node:fs/promises')
+  const current = await readFile(new URL('./cloudflare-worker-bundle.js', import.meta.url), 'utf8')
+  assert.equal(current, await buildWorkerBundle(), 'Kör: npm run bundle:worker')
+})
