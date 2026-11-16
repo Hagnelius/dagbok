@@ -91,8 +91,8 @@ async function callAnthropic(env, prompt, image) {
 /** Googles Gemini via deras OpenAI-kompatibla gränssnitt (har en gratisnivå). */
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'
 const GEMINI_DEFAULT_MODEL = 'gemini-flash-latest'
-/** Snabbare reservmodell om huvudmodellen inte hinner svara. */
-const GEMINI_FALLBACK_MODEL = 'gemini-flash-lite-latest'
+/** Reservmodeller som provas i tur och ordning om en modell är överbelastad, saknas eller är för långsam. */
+const GEMINI_FALLBACK_MODELS = ['gemini-flash-lite-latest', 'gemini-2.5-flash', 'gemini-2.5-flash-lite']
 
 async function callOpenAI(env, prompt, image, opts = {}) {
   const res = await fetch(opts.url || env.OPENAI_BASE_URL || 'https://api.openai.com/v1/chat/completions', {
@@ -109,29 +109,36 @@ async function callOpenAI(env, prompt, image, opts = {}) {
   return data.choices?.[0]?.message?.content ?? ''
 }
 
-/** true för fel som tyder på att tjänsten var för långsam eller tillfälligt nere. */
-function isSlowOrDown(e) {
-  return e?.name === 'TimeoutError' || e?.name === 'AbortError' || /svarade (5\d\d)/.test(e?.message ?? '')
+/** true om felet gäller just den modellen (överbelastad, saknas, kvot eller för långsam) – då provas nästa. */
+function tryNextModel(e) {
+  return e?.name === 'TimeoutError' || e?.name === 'AbortError' || /svarade (404|429|5\d\d)|gratiskvot/.test(e?.message ?? '')
 }
 
 /**
- * Gemini med kort tankeinsats så att svaret kommer snabbt. Om huvudmodellen är för långsam
- * eller tillfälligt nere görs ett nytt försök med en snabbare modell (allt inom ca 85 s).
+ * Gemini med kort tankeinsats så att svaret kommer snabbt. Googles gratisnivå är ibland överbelastad
+ * (503) eller långsam – då provas reservmodellerna i tur och ordning, allt inom ca 85 s.
+ * AI_MODEL kan vara en kommaseparerad lista som ersätter standardordningen.
  */
 async function callGemini(env, prompt, image) {
   const base = { url: GEMINI_URL, key: env.GEMINI_API_KEY, jsonMode: false, reasoning: env.AI_REASONING || 'low' }
-  try {
-    return await callOpenAI(env, prompt, image, { ...base, model: env.AI_MODEL || GEMINI_DEFAULT_MODEL, timeoutMs: 50_000 })
-  } catch (e) {
-    if (!isSlowOrDown(e)) throw e
-    console.error(`Huvudmodellen svarade inte i tid (${e.name}), försöker med ${GEMINI_FALLBACK_MODEL}`)
+  const models = env.AI_MODEL ? env.AI_MODEL.split(',').map((m) => m.trim()).filter(Boolean) : [GEMINI_DEFAULT_MODEL, ...GEMINI_FALLBACK_MODELS]
+  const started = Date.now()
+  const errors = []
+  for (const [i, model] of models.entries()) {
+    const left = 85_000 - (Date.now() - started)
+    if (left < 5_000) break
     try {
-      return await callOpenAI(env, prompt, image, { ...base, model: GEMINI_FALLBACK_MODEL, timeoutMs: 35_000 })
-    } catch (e2) {
-      if (isSlowOrDown(e2)) throw new Error('AI-tjänsten svarade inte i tid – försök igen om en stund.')
-      throw e2
+      return await callOpenAI(env, prompt, image, { ...base, model, timeoutMs: Math.min(i === 0 ? 30_000 : 20_000, left) })
+    } catch (e) {
+      if (!tryNextModel(e)) throw e
+      console.error(`${model} gick inte att använda (${e.name === 'Error' ? e.message.slice(0, 60) : e.name}), provar nästa`)
+      errors.push(e)
     }
   }
+  const all = (re) => errors.length > 0 && errors.every((e) => re.test(e.message))
+  if (all(/gratiskvot/) || all(/svarade 404/)) throw errors[errors.length - 1]
+  if (errors.every((e) => e.name === 'TimeoutError' || e.name === 'AbortError')) throw new Error('AI-tjänsten svarade inte i tid – försök igen om en stund.')
+  throw new Error('Googles AI-tjänst är överbelastad just nu – försök igen om en stund.')
 }
 
 /**
