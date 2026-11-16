@@ -7,6 +7,7 @@
 //   APP_TOKEN        (Secret)  valfri lång kod, samma som "Åtkomstkod" i appen
 //   ALLOWED_ORIGIN   (Text)    t.ex. https://hagnelius.github.io
 //   AI_MODEL         (Text, valfri) standard för Gemini: gemini-flash-latest
+//   AI_REASONING     (Text, valfri) Geminis tankeinsats: low (standard), medium, high
 // Alternativ: ANTHROPIC_API_KEY eller OPENAI_API_KEY i stället för GEMINI_API_KEY.
 
 // Delad logik för AI-serverfunktionen (Cloudflare Worker och lokal Node-server).
@@ -90,19 +91,47 @@ async function callAnthropic(env, prompt, image) {
 /** Googles Gemini via deras OpenAI-kompatibla gränssnitt (har en gratisnivå). */
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'
 const GEMINI_DEFAULT_MODEL = 'gemini-flash-latest'
+/** Snabbare reservmodell om huvudmodellen inte hinner svara. */
+const GEMINI_FALLBACK_MODEL = 'gemini-flash-lite-latest'
 
 async function callOpenAI(env, prompt, image, opts = {}) {
   const res = await fetch(opts.url || env.OPENAI_BASE_URL || 'https://api.openai.com/v1/chat/completions', {
     method: 'POST',
+    ...(opts.timeoutMs ? { signal: AbortSignal.timeout(opts.timeoutMs) } : {}),
     headers: { 'content-type': 'application/json', authorization: `Bearer ${opts.key || env.OPENAI_API_KEY}` },
     // Gemini får ingen response_format – prompten kräver ren JSON och svaret tolkas tolerant.
-    body: JSON.stringify({ model: opts.model || env.AI_MODEL || 'gpt-4o-mini', ...(opts.jsonMode === false ? {} : { response_format: { type: 'json_object' } }), messages: [{ role: 'user', content: image
+    body: JSON.stringify({ model: opts.model || env.AI_MODEL || 'gpt-4o-mini', ...(opts.jsonMode === false ? {} : { response_format: { type: 'json_object' } }), ...(opts.reasoning ? { reasoning_effort: opts.reasoning } : {}), messages: [{ role: 'user', content: image
       ? [{ type: 'image_url', image_url: { url: `data:${image.mediaType};base64,${image.data}` } }, { type: 'text', text: prompt }]
       : prompt }] }),
   })
   if (!res.ok) throw await serviceError(res)
   const data = await res.json()
   return data.choices?.[0]?.message?.content ?? ''
+}
+
+/** true för fel som tyder på att tjänsten var för långsam eller tillfälligt nere. */
+function isSlowOrDown(e) {
+  return e?.name === 'TimeoutError' || e?.name === 'AbortError' || /svarade (5\d\d)/.test(e?.message ?? '')
+}
+
+/**
+ * Gemini med kort tankeinsats så att svaret kommer snabbt. Om huvudmodellen är för långsam
+ * eller tillfälligt nere görs ett nytt försök med en snabbare modell (allt inom ca 85 s).
+ */
+async function callGemini(env, prompt, image) {
+  const base = { url: GEMINI_URL, key: env.GEMINI_API_KEY, jsonMode: false, reasoning: env.AI_REASONING || 'low' }
+  try {
+    return await callOpenAI(env, prompt, image, { ...base, model: env.AI_MODEL || GEMINI_DEFAULT_MODEL, timeoutMs: 50_000 })
+  } catch (e) {
+    if (!isSlowOrDown(e)) throw e
+    console.error(`Huvudmodellen svarade inte i tid (${e.name}), försöker med ${GEMINI_FALLBACK_MODEL}`)
+    try {
+      return await callOpenAI(env, prompt, image, { ...base, model: GEMINI_FALLBACK_MODEL, timeoutMs: 35_000 })
+    } catch (e2) {
+      if (isSlowOrDown(e2)) throw new Error('AI-tjänsten svarade inte i tid – försök igen om en stund.')
+      throw e2
+    }
+  }
 }
 
 /**
@@ -141,7 +170,7 @@ async function handle(method, headers, bodyText, env) {
     const prompt = buildPrompt(input.text, today, now, weight, !!image)
     const provider = env.AI_PROVIDER || (env.GEMINI_API_KEY ? 'gemini' : env.OPENAI_API_KEY && !env.ANTHROPIC_API_KEY ? 'openai' : 'anthropic')
     const raw = provider === 'gemini'
-      ? await callOpenAI(env, prompt, image, { url: GEMINI_URL, key: env.GEMINI_API_KEY, model: env.AI_MODEL || GEMINI_DEFAULT_MODEL, jsonMode: false })
+      ? await callGemini(env, prompt, image)
       : provider === 'openai' ? await callOpenAI(env, prompt, image) : await callAnthropic(env, prompt, image)
     // Klienten validerar och rensar svaret igen innan det visas för granskning.
     return { status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify(extractJson(raw)) }

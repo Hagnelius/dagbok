@@ -16,6 +16,7 @@ export async function buildWorkerBundle() {
 //   APP_TOKEN        (Secret)  valfri lång kod, samma som "Åtkomstkod" i appen
 //   ALLOWED_ORIGIN   (Text)    t.ex. https://hagnelius.github.io
 //   AI_MODEL         (Text, valfri) standard för Gemini: ${'gemini-flash-latest'}
+//   AI_REASONING     (Text, valfri) Geminis tankeinsats: low (standard), medium, high
 // Alternativ: ANTHROPIC_API_KEY eller OPENAI_API_KEY i stället för GEMINI_API_KEY.
 
 ${shared}

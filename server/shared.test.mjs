@@ -69,3 +69,30 @@ test('felmeddelande från Gemini skickas vidare (utan användartext)', async () 
     assert.doesNotMatch(err, /hemlig mat/)
   } finally { globalThis.fetch = orig; console.error = origErr }
 })
+test('Gemini: kort tankeinsats och reservmodell vid tidsgräns/5xx', async () => {
+  const orig = globalThis.fetch
+  const origErr = console.error; console.error = () => {}
+  const models = []
+  globalThis.fetch = async (_u, init) => {
+    const b = JSON.parse(init.body); models.push(b.model)
+    assert.equal(b.reasoning_effort, 'low')
+    if (models.length === 1) return new Response('error code: 524', { status: 524 })
+    return new Response(JSON.stringify({ choices: [{ message: { content: '{"foods":[],"workouts":[]}' } }] }), { status: 200 })
+  }
+  try {
+    const r = await handle('POST', h(), JSON.stringify({ text: 'kebab' }), { ALLOWED_ORIGIN: 'https://app.example', APP_TOKEN: 'hemlig', GEMINI_API_KEY: 'gk' })
+    assert.equal(r.status, 200)
+    assert.deepEqual(models, ['gemini-flash-latest', 'gemini-flash-lite-latest'])
+  } finally { globalThis.fetch = orig; console.error = origErr }
+})
+test('Gemini: fel nyckel ger inget nytt försök', async () => {
+  const orig = globalThis.fetch
+  const origErr = console.error; console.error = () => {}
+  let calls = 0
+  globalThis.fetch = async () => { calls++; return new Response(JSON.stringify([{ error: { message: 'API key not valid' } }]), { status: 400 }) }
+  try {
+    const r = await handle('POST', h(), JSON.stringify({ text: 'kebab' }), { ALLOWED_ORIGIN: 'https://app.example', APP_TOKEN: 'hemlig', GEMINI_API_KEY: 'gk' })
+    assert.equal(r.status, 502); assert.equal(calls, 1)
+    assert.match(JSON.parse(r.body).error, /API key not valid/)
+  } finally { globalThis.fetch = orig; console.error = origErr }
+})
