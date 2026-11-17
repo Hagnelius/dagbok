@@ -241,7 +241,7 @@ function DayNoteEditor({ date, note }: { date: string; note: string }) {
   return (
     <div className="mt-4 mb-6">
       <label htmlFor="daynote" className="text-[13px] font-semibold uppercase tracking-wide text-muted px-1">Dagens anteckning</label>
-      <textarea id="daynote" className="field min-h-20 mt-2" value={v} placeholder="Hur kändes dagen? Sömn, ork, matchdag …"
+      <textarea id="daynote" className="field min-h-20 mt-2" value={v} placeholder="Hur kändes dagen? Sömn, ork, humör …"
         onChange={(e) => setV(e.target.value)} onBlur={() => { if (v !== note) void saveDayNote(date, v) }} />
     </div>
   )

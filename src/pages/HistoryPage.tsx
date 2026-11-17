@@ -43,7 +43,7 @@ export default function HistoryPage() {
     <div>
       <PageHeader title="Historik" />
       <div className="max-w-2xl mx-auto px-4 grid gap-3 pb-6">
-        <input type="search" className="field" placeholder="Sök i historiken, t.ex. pizza eller fotboll" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Sök i historiken" enterKeyHint="search" />
+        <input type="search" className="field" placeholder="Sök i historiken, t.ex. pizza eller promenad" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Sök i historiken" enterKeyHint="search" />
 
         {q.trim() ? (
           <Card className="!p-0 overflow-hidden" as="div">
@@ -132,4 +132,3 @@ export default function HistoryPage() {
     </div>
   )
 }
-
