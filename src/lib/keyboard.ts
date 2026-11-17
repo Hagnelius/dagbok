@@ -1,3 +1,5 @@
+import { flushSync } from 'react-dom'
+
 // iPhone öppnar bara tangentbordet om ett textfält får fokus direkt i samband med ett tryck.
 // När man trycker på en länk till "Skriv eller prata in" byts sidan först, och då är trycket redan över.
 // Lösning: i själva trycket ges ett osynligt textfält fokus (tangentbordet öppnas), och när den nya
@@ -37,4 +39,24 @@ export function focusAtEnd(el: HTMLTextAreaElement | HTMLInputElement | null) {
   const n = el.value.length
   try { el.setSelectionRange(n, n) } catch { /* vissa fälttyper saknar markör */ }
   releaseKeyboardPrimer()
+}
+
+/**
+ * Byter sida och ger textrutan fokus i SAMMA tryck. Sidbytet renderas synkront (flushSync) så att
+ * textrutan finns direkt – då godkänner iPhone fokus och öppnar tangentbordet.
+ */
+export function navigateAndFocus(to: string, id = 'ai-text') {
+  primeKeyboard()
+  flushSync(() => {
+    history.pushState(null, '', '#' + to)
+    window.dispatchEvent(new HashChangeEvent('hashchange'))
+  })
+  focusAtEnd(document.getElementById(id) as HTMLTextAreaElement | null)
+}
+
+/** Ger ett fält fokus i samma tryck efter en synkron tillståndsändring (t.ex. byte av läge). */
+export function updateAndFocus(update: () => void, id = 'ai-text') {
+  primeKeyboard()
+  flushSync(update)
+  focusAtEnd(document.getElementById(id) as HTMLTextAreaElement | null)
 }

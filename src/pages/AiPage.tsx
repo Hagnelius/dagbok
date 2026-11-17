@@ -13,13 +13,7 @@ import { ACTIVITIES, MEALS, UNITS, type AiFoodItem, type AiResult, type AiWorkou
 import { navigate } from '../router'
 import { rescale } from '../lib/units'
 import { prepareImage, type PreparedImage } from '../lib/ai/image'
-import { focusAtEnd, primeKeyboard } from '../lib/keyboard'
-
-const EXAMPLES = [
-  'Till lunch åt jag en omelett på tre ägg, 30 gram riven ost, 30 gram keso, en halv tomat, två matskedar purjolök och lite smör.',
-  'Idag körde jag 45 minuter crosstrainer och sedan 45 minuter gym med medelintensitet.',
-  'Frukost: 2 skivor knäckebröd med skinka och en kaffe latte',
-]
+import { focusAtEnd, updateAndFocus } from '../lib/keyboard'
 
 interface Review { id: string; provider: string; result: AiResult; foods: Array<AiFoodItem & { keep: boolean }>; workouts: Array<AiWorkoutItem & { keep: boolean }> }
 
@@ -128,7 +122,7 @@ export default function AiPage({ date, mode: modeParam }: { date: string; mode?:
     <div>
       <PageHeader title={isPhoto ? 'Fota maten' : 'Skriv eller prata in'} back="/" subtitle={relativeDayLabel(date, today)} />
       <div className="max-w-2xl mx-auto px-4 grid gap-3 pb-6">
-        <Segmented label="Sätt att beskriva" value={mode} onChange={(m) => { if (m === 'text') primeKeyboard(); setMode(m); setError(undefined) }}
+        <Segmented label="Sätt att beskriva" value={mode} onChange={(m) => { const u = () => { setMode(m); setError(undefined) }; if (m === 'text') updateAndFocus(u); else u() }}
           options={[{ value: 'text', label: '🎙️ Skriv eller prata' }, { value: 'foto', label: '📷 Foto' }]} />
 
         {isPhoto ? (
@@ -165,29 +159,19 @@ export default function AiPage({ date, mode: modeParam }: { date: string; mode?:
           </Card>
         ) : (
           <Card>
-            <label htmlFor="ai-text" className="font-semibold block mb-1">Beskriv vad du ätit eller hur du tränat</label>
-            <p id="ai-help" className="text-sm text-muted mb-2">Skriv med egna ord eller tryck på <b>mikrofonen 🎙</b> nere till höger på tangentbordet för att diktera. Ange gärna mängder. Du får granska allt innan något sparas.</p>
-            <textarea ref={textRef} id="ai-text" aria-describedby="ai-help" className="field min-h-44 text-[17px] leading-relaxed" value={text} onChange={(e) => setText(e.target.value)}
-              placeholder="T.ex. Till lunch åt jag 150 g kyckling, 2 dl ris och en sallad. Sen promenad 30 minuter." autoCapitalize="sentences" spellCheck enterKeyHint="enter" />
-            <div className="flex gap-2 mt-2">
-              {text && <Button variant="ghost" onClick={() => setText('')}>Rensa</Button>}
-            </div>
+            <label htmlFor="ai-text" className="font-semibold text-[17px] block mb-2">Beskriv vad du ätit eller hur du tränat</label>
+            <textarea ref={textRef} id="ai-text" className="field min-h-44 text-[17px] leading-relaxed" value={text} onChange={(e) => setText(e.target.value)}
+              placeholder="T.ex. 150 g kyckling, 2 dl ris och en sallad. Promenad 30 minuter." autoCapitalize="sentences" spellCheck enterKeyHint="enter" />
+            {text && <div className="flex mt-2"><Button variant="ghost" onClick={() => setText('')}>Rensa</Button></div>}
             {error && <p className="text-danger text-[15px] mt-2" role="alert">{error}</p>}
             <Button variant="primary" block className="mt-3 min-h-14 text-[17px]" onClick={() => analyze()} disabled={busy} aria-busy={busy}>
-              {busy ? 'Tolkar …' : 'Analysera text'}
+              {busy ? 'Tolkar …' : 'Analysera'}
             </Button>
             <p className="text-sm text-muted mt-2">
-              Tolkning: <b>{provider === 'lokal' ? 'Lokal (på enheten, offline)' : provider === 'server' ? `Serverfunktion${endpointHost ? ` (${endpointHost})` : ''}` : 'Klistra in AI-svar'}</b>
+              Tolkning: {provider === 'lokal' ? 'lokal' : provider === 'server' ? 'serverfunktion' : 'klistra in AI-svar'}
               {' · '}<a href="#/installningar/ai" className="text-brand underline">Ändra</a>
-              {provider === 'server' && <span className="block">Texten skickas till serverfunktionen när du trycker Analysera.</span>}
             </p>
           </Card>
-        )}
-        {!isPhoto && !text && (
-          <section aria-label="Exempel">
-            <h2 className="text-[13px] font-semibold uppercase tracking-wide text-muted mb-2 px-1">Exempel – tryck för att prova</h2>
-            <div className="grid gap-2">{EXAMPLES.map((e) => <button key={e} type="button" onClick={() => setText(e)} className="text-left bg-card border border-line rounded-2xl p-3 text-[15px] active:bg-card-2">{e}</button>)}</div>
-          </section>
         )}
         {recent.length > 0 && (
           <details className="mt-2">
@@ -199,7 +183,7 @@ export default function AiPage({ date, mode: modeParam }: { date: string; mode?:
                   <div className="min-w-0 flex-1">
                     <div className="flex justify-between text-sm text-muted mb-1"><span>{formatShort(r.createdAt.slice(0, 10))} · {r.provider === 'lokal' ? 'lokal' : r.provider}</span><span>{{ vantar: 'Ej granskad', godkand: 'Godkänd', delvis: 'Delvis godkänd', avbruten: 'Avbruten' }[r.status]}</span></div>
                     <p className="line-clamp-3">"{r.inputText}"</p>
-                    {r.inputKind !== 'foto' && <button type="button" className="text-brand font-semibold text-sm min-h-11" onClick={() => { primeKeyboard(); setMode('text'); setText(r.inputText) }}>Använd texten igen</button>}
+                    {r.inputKind !== 'foto' && <button type="button" className="text-brand font-semibold text-sm min-h-11" onClick={() => updateAndFocus(() => { setMode('text'); setText(r.inputText) })}>Använd texten igen</button>}
                   </div>
                 </li>
               ))}
