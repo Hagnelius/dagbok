@@ -3,12 +3,12 @@
 //
 // Klistra in hela filen i Cloudflare (Workers → din Worker → Edit code) och spara.
 // Inställningar (Settings → Variables and Secrets):
-//   GEMINI_API_KEY   (Secret)  nyckel från Google AI Studio – gratisnivå
+//   OPENAI_API_KEY   (Secret)  nyckel från platform.openai.com
 //   APP_TOKEN        (Secret)  valfri lång kod, samma som "Åtkomstkod" i appen
 //   ALLOWED_ORIGIN   (Text)    t.ex. https://hagnelius.github.io
-//   AI_MODEL         (Text, valfri) standard för Gemini: gemini-flash-latest
-//   AI_REASONING     (Text, valfri) Geminis tankeinsats: low (standard), medium, high
-// Alternativ: ANTHROPIC_API_KEY eller OPENAI_API_KEY i stället för GEMINI_API_KEY.
+//   AI_MODEL         (Text, valfri) standard: gpt-6-luna
+//   AI_REASONING     (Text, valfri) tankeinsats: none (snabbast), low (standard), medium, high
+// Alternativ: ANTHROPIC_API_KEY i stället för OPENAI_API_KEY.
 
 // Delad logik för AI-serverfunktionen (Cloudflare Worker och lokal Node-server).
 // API-nyckeln läses ENDAST från miljövariabler på servern och skickas aldrig till klienten.
@@ -20,8 +20,8 @@ Bedöm livsmedel och mängder utifrån det som syns (tallrikens storlek, bestick
 Mängder och näring från fotot är "uppskattat", eller "osakert" om du är osäker. Det användaren skriver i texten nedan är "angivet" och går före bilden.
 Tänk på dolda kalorier (olja, smör, sås, dressing) och nämn dem som antaganden. Ställ en följdfråga om något avgörande inte syns.`
     : 'Du tolkar en svensk dagboksanteckning om mat och/eller träning till JSON.'
+  // Fasta instruktioner först och det som ändras sist – då kan AI-tjänsten återanvända början (snabbare och billigare).
   return `${intro}
-Dagens datum: ${today}. Klockan: ${now}.${weightKg ? ` Kroppsvikt: ${weightKg} kg (för att uppskatta träningskalorier).` : ''}
 
 Svara ENDAST med JSON enligt detta schema:
 {
@@ -50,6 +50,8 @@ Regler:
 - Träningskalorier är nettoförbrukning utöver vila och alltid "uppskattat".
 - Hitta inte på mat eller träning som inte nämns.
 
+Dagens datum: ${today}. Klockan: ${now}.${weightKg ? ` Kroppsvikt: ${weightKg} kg (för att uppskatta träningskalorier).` : ''}
+
 ${photo ? 'Användarens kommentar till fotot' : 'Text'}:
 """${String(text).slice(0, 2000) || '(ingen kommentar)'}"""`
 }
@@ -63,7 +65,7 @@ async function serviceError(res) {
   } catch { /* ignorera */ }
   detail = String(detail).replace(/\s+/g, ' ').slice(0, 200)
   console.error(`AI-tjänsten svarade ${res.status}: ${detail}`)
-  if (res.status === 429) return new Error('AI-tjänstens gratiskvot är slut för stunden – försök igen senare.')
+  if (res.status === 429) return new Error('AI-tjänstens kvot eller utgiftstak är nått – försök igen senare eller kontrollera kontot hos AI-tjänsten.')
   return new Error(`AI-tjänsten svarade ${res.status}${detail ? `: ${detail}` : ''}`)
 }
 
@@ -88,57 +90,32 @@ async function callAnthropic(env, prompt, image) {
   return data.content?.map((c) => c.text ?? '').join('') ?? ''
 }
 
-/** Googles Gemini via deras OpenAI-kompatibla gränssnitt (har en gratisnivå). */
-const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'
-const GEMINI_DEFAULT_MODEL = 'gemini-flash-latest'
-/** Reservmodeller som provas i tur och ordning om en modell är överbelastad, saknas eller är för långsam. */
-const GEMINI_FALLBACK_MODELS = ['gemini-flash-lite-latest', 'gemini-2.5-flash', 'gemini-2.5-flash-lite']
+/** Standardmodell för OpenAI. Kan ändras med AI_MODEL. */
+const OPENAI_DEFAULT_MODEL = 'gpt-6-luna'
 
-async function callOpenAI(env, prompt, image, opts = {}) {
-  const res = await fetch(opts.url || env.OPENAI_BASE_URL || 'https://api.openai.com/v1/chat/completions', {
+/**
+ * OpenAI. Tankeinsatsen styr hastigheten: modellens standard (medium) är långsam för den här uppgiften,
+ * så standard här är "low". AI_REASONING kan sättas till none (snabbast), low, medium eller high.
+ */
+async function callOpenAI(env, prompt, image) {
+  const res = await fetch(env.OPENAI_BASE_URL || 'https://api.openai.com/v1/chat/completions', {
     method: 'POST',
-    ...(opts.timeoutMs ? { signal: AbortSignal.timeout(opts.timeoutMs) } : {}),
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${opts.key || env.OPENAI_API_KEY}` },
-    // Gemini får ingen response_format – prompten kräver ren JSON och svaret tolkas tolerant.
-    body: JSON.stringify({ model: opts.model || env.AI_MODEL || 'gpt-4o-mini', ...(opts.jsonMode === false ? {} : { response_format: { type: 'json_object' } }), ...(opts.reasoning ? { reasoning_effort: opts.reasoning } : {}), messages: [{ role: 'user', content: image
-      ? [{ type: 'image_url', image_url: { url: `data:${image.mediaType};base64,${image.data}` } }, { type: 'text', text: prompt }]
-      : prompt }] }),
+    signal: AbortSignal.timeout(80_000),
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${env.OPENAI_API_KEY}` },
+    body: JSON.stringify({
+      model: env.AI_MODEL || OPENAI_DEFAULT_MODEL,
+      reasoning_effort: env.AI_REASONING || 'low',
+      response_format: { type: 'json_object' },
+      messages: [{ role: 'user', content: image
+        ? [{ type: 'image_url', image_url: { url: `data:${image.mediaType};base64,${image.data}` } }, { type: 'text', text: prompt }]
+        : prompt }],
+    }),
+  }).catch((e) => {
+    throw e?.name === 'TimeoutError' ? new Error('AI-tjänsten svarade inte i tid – försök igen om en stund.') : e
   })
   if (!res.ok) throw await serviceError(res)
   const data = await res.json()
   return data.choices?.[0]?.message?.content ?? ''
-}
-
-/** true om felet gäller just den modellen (överbelastad, saknas, kvot eller för långsam) – då provas nästa. */
-function tryNextModel(e) {
-  return e?.name === 'TimeoutError' || e?.name === 'AbortError' || /svarade (404|429|5\d\d)|gratiskvot/.test(e?.message ?? '')
-}
-
-/**
- * Gemini med kort tankeinsats så att svaret kommer snabbt. Googles gratisnivå är ibland överbelastad
- * (503) eller långsam – då provas reservmodellerna i tur och ordning, allt inom ca 85 s.
- * AI_MODEL kan vara en kommaseparerad lista som ersätter standardordningen.
- */
-async function callGemini(env, prompt, image) {
-  const base = { url: GEMINI_URL, key: env.GEMINI_API_KEY, jsonMode: false, reasoning: env.AI_REASONING || 'low' }
-  const models = env.AI_MODEL ? env.AI_MODEL.split(',').map((m) => m.trim()).filter(Boolean) : [GEMINI_DEFAULT_MODEL, ...GEMINI_FALLBACK_MODELS]
-  const started = Date.now()
-  const errors = []
-  for (const [i, model] of models.entries()) {
-    const left = 85_000 - (Date.now() - started)
-    if (left < 5_000) break
-    try {
-      return await callOpenAI(env, prompt, image, { ...base, model, timeoutMs: Math.min(i === 0 ? 30_000 : 20_000, left) })
-    } catch (e) {
-      if (!tryNextModel(e)) throw e
-      console.error(`${model} gick inte att använda (${e.name === 'Error' ? e.message.slice(0, 60) : e.name}), provar nästa`)
-      errors.push(e)
-    }
-  }
-  const all = (re) => errors.length > 0 && errors.every((e) => re.test(e.message))
-  if (all(/gratiskvot/) || all(/svarade 404/)) throw errors[errors.length - 1]
-  if (errors.every((e) => e.name === 'TimeoutError' || e.name === 'AbortError')) throw new Error('AI-tjänsten svarade inte i tid – försök igen om en stund.')
-  throw new Error('Googles AI-tjänst är överbelastad just nu – försök igen om en stund.')
 }
 
 /**
@@ -175,10 +152,8 @@ async function handle(method, headers, bodyText, env) {
   const weight = typeof input.weightKg === 'number' && input.weightKg > 20 && input.weightKg < 400 ? Math.round(input.weightKg) : undefined
   try {
     const prompt = buildPrompt(input.text, today, now, weight, !!image)
-    const provider = env.AI_PROVIDER || (env.GEMINI_API_KEY ? 'gemini' : env.OPENAI_API_KEY && !env.ANTHROPIC_API_KEY ? 'openai' : 'anthropic')
-    const raw = provider === 'gemini'
-      ? await callGemini(env, prompt, image)
-      : provider === 'openai' ? await callOpenAI(env, prompt, image) : await callAnthropic(env, prompt, image)
+    const provider = env.AI_PROVIDER || (env.OPENAI_API_KEY ? 'openai' : 'anthropic')
+    const raw = provider === 'openai' ? await callOpenAI(env, prompt, image) : await callAnthropic(env, prompt, image)
     // Klienten validerar och rensar svaret igen innan det visas för granskning.
     return { status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify(extractJson(raw)) }
   } catch (e) {

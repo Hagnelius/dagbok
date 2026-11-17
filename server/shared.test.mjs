@@ -24,31 +24,66 @@ test('bild skickas till AI-tjänsten som bildinnehåll', async () => {
     assert.match(sent.messages[0].content[1].text, /bifogat foto/)
   } finally { globalThis.fetch = orig }
 })
-test('Gemini: rätt adress, nyckel, modell och bild som data-URL', async () => {
+const oenv = { ALLOWED_ORIGIN: 'https://app.example', APP_TOKEN: 'hemlig', OPENAI_API_KEY: 'ok' }
+test('OpenAI: rätt adress, nyckel, modell, låg tankeinsats och bild som data-URL', async () => {
   const orig = globalThis.fetch
   let url, init
-  globalThis.fetch = async (u, i) => { url = u; init = i; return new Response(JSON.stringify({ choices: [{ message: { content: '```json\n{"foods":[{"name":"Kebab","amount":1,"unit":"portion","kcal":800,"protein":40}],"workouts":[]}\n```' } }] }), { status: 200 }) }
+  globalThis.fetch = async (u, i) => { url = u; init = i; return new Response(JSON.stringify({ choices: [{ message: { content: '{"foods":[{"name":"Kebab","amount":1,"unit":"portion","kcal":800,"protein":40}],"workouts":[]}' } }] }), { status: 200 }) }
   try {
-    const genv = { ALLOWED_ORIGIN: 'https://app.example', APP_TOKEN: 'hemlig', GEMINI_API_KEY: 'gk' }
-    const r = await handle('POST', h(), JSON.stringify({ text: 'kebab', image: { mediaType: 'image/jpeg', data: 'A'.repeat(200) } }), genv)
+    const r = await handle('POST', h(), JSON.stringify({ text: 'kebab', image: { mediaType: 'image/jpeg', data: 'A'.repeat(200) } }), oenv)
     assert.equal(r.status, 200)
     assert.equal(JSON.parse(r.body).foods[0].name, 'Kebab')
-    assert.match(url, /generativelanguage\.googleapis\.com\/v1beta\/openai\/chat\/completions/)
-    assert.equal(init.headers.authorization, 'Bearer gk')
+    assert.equal(url, 'https://api.openai.com/v1/chat/completions')
+    assert.equal(init.headers.authorization, 'Bearer ok')
     const body = JSON.parse(init.body)
-    assert.equal(body.model, 'gemini-flash-latest')
-    assert.equal(body.response_format, undefined)
+    assert.equal(body.model, 'gpt-6-luna')
+    assert.equal(body.reasoning_effort, 'low')
+    assert.deepEqual(body.response_format, { type: 'json_object' })
     assert.match(body.messages[0].content[0].image_url.url, /^data:image\/jpeg;base64,/)
+    // Fasta instruktioner först, dagens datum sist (för återanvändning hos AI-tjänsten).
+    const p = body.messages[0].content[1].text
+    assert.ok(p.indexOf('Svara ENDAST') < p.indexOf('Dagens datum'))
   } finally { globalThis.fetch = orig }
 })
-test('Gemini: slut på gratiskvot ger begripligt fel', async () => {
+test('OpenAI: modell och tankeinsats kan ändras', async () => {
+  const orig = globalThis.fetch
+  let body
+  globalThis.fetch = async (_u, i) => { body = JSON.parse(i.body); return new Response(JSON.stringify({ choices: [{ message: { content: '{}' } }] }), { status: 200 }) }
+  try {
+    await handle('POST', h(), JSON.stringify({ text: 'kebab' }), { ...oenv, AI_MODEL: 'annan', AI_REASONING: 'none' })
+    assert.equal(body.model, 'annan'); assert.equal(body.reasoning_effort, 'none')
+  } finally { globalThis.fetch = orig }
+})
+test('slut på kvot ger begripligt fel', async () => {
   const orig = globalThis.fetch
   globalThis.fetch = async () => new Response('{}', { status: 429 })
   const origErr = console.error; console.error = () => {}
   try {
-    const r = await handle('POST', h(), JSON.stringify({ text: 'kebab' }), { ALLOWED_ORIGIN: 'https://app.example', APP_TOKEN: 'hemlig', GEMINI_API_KEY: 'gk' })
+    const r = await handle('POST', h(), JSON.stringify({ text: 'kebab' }), oenv)
     assert.equal(r.status, 502)
-    assert.match(JSON.parse(r.body).error, /gratiskvot/)
+    assert.match(JSON.parse(r.body).error, /kvot/)
+  } finally { globalThis.fetch = orig; console.error = origErr }
+})
+test('felmeddelande från AI-tjänsten skickas vidare (utan användartext)', async () => {
+  const orig = globalThis.fetch
+  const origErr = console.error; console.error = () => {}
+  globalThis.fetch = async () => new Response(JSON.stringify({ error: { message: 'Incorrect API key provided', type: 'invalid_request_error' } }), { status: 401 })
+  try {
+    const r = await handle('POST', h(), JSON.stringify({ text: 'hemlig mat' }), oenv)
+    assert.equal(r.status, 502)
+    const err = JSON.parse(r.body).error
+    assert.match(err, /401: Incorrect API key/)
+    assert.doesNotMatch(err, /hemlig mat/)
+  } finally { globalThis.fetch = orig; console.error = origErr }
+})
+test('tidsgräns ger begripligt fel', async () => {
+  const orig = globalThis.fetch
+  const origErr = console.error; console.error = () => {}
+  globalThis.fetch = async () => { throw new DOMException('timeout', 'TimeoutError') }
+  try {
+    const r = await handle('POST', h(), JSON.stringify({ text: 'kebab' }), oenv)
+    assert.equal(r.status, 502)
+    assert.match(JSON.parse(r.body).error, /inte i tid/)
   } finally { globalThis.fetch = orig; console.error = origErr }
 })
 test('paketerad Worker-fil är uppdaterad', async () => {
@@ -56,56 +91,4 @@ test('paketerad Worker-fil är uppdaterad', async () => {
   const { readFile } = await import('node:fs/promises')
   const current = await readFile(new URL('./cloudflare-worker-bundle.js', import.meta.url), 'utf8')
   assert.equal(current, await buildWorkerBundle(), 'Kör: npm run bundle:worker')
-})
-test('felmeddelande från Gemini skickas vidare (utan användartext)', async () => {
-  const orig = globalThis.fetch
-  const origErr = console.error; console.error = () => {}
-  globalThis.fetch = async () => new Response(JSON.stringify([{ error: { code: 404, message: 'models/x is not found for API version v1beta', status: 'NOT_FOUND' } }]), { status: 404 })
-  try {
-    const r = await handle('POST', h(), JSON.stringify({ text: 'hemlig mat' }), { ALLOWED_ORIGIN: 'https://app.example', APP_TOKEN: 'hemlig', GEMINI_API_KEY: 'gk' })
-    assert.equal(r.status, 502)
-    const err = JSON.parse(r.body).error
-    assert.match(err, /404: models\/x is not found/)
-    assert.doesNotMatch(err, /hemlig mat/)
-  } finally { globalThis.fetch = orig; console.error = origErr }
-})
-test('Gemini: kort tankeinsats och reservmodeller vid 524/503/404', async () => {
-  const orig = globalThis.fetch
-  const origErr = console.error; console.error = () => {}
-  const models = []
-  globalThis.fetch = async (_u, init) => {
-    const b = JSON.parse(init.body); models.push(b.model)
-    assert.equal(b.reasoning_effort, 'low')
-    if (models.length === 1) return new Response('error code: 524', { status: 524 })
-    if (models.length === 2) return new Response(JSON.stringify([{ error: { message: 'This model is currently experiencing high demand.' } }]), { status: 503 })
-    if (models.length === 3) return new Response('{}', { status: 404 })
-    return new Response(JSON.stringify({ choices: [{ message: { content: '{"foods":[],"workouts":[]}' } }] }), { status: 200 })
-  }
-  try {
-    const r = await handle('POST', h(), JSON.stringify({ text: 'kebab' }), { ALLOWED_ORIGIN: 'https://app.example', APP_TOKEN: 'hemlig', GEMINI_API_KEY: 'gk' })
-    assert.equal(r.status, 200)
-    assert.deepEqual(models, ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'])
-  } finally { globalThis.fetch = orig; console.error = origErr }
-})
-test('Gemini: fel nyckel ger inget nytt försök', async () => {
-  const orig = globalThis.fetch
-  const origErr = console.error; console.error = () => {}
-  let calls = 0
-  globalThis.fetch = async () => { calls++; return new Response(JSON.stringify([{ error: { message: 'API key not valid' } }]), { status: 400 }) }
-  try {
-    const r = await handle('POST', h(), JSON.stringify({ text: 'kebab' }), { ALLOWED_ORIGIN: 'https://app.example', APP_TOKEN: 'hemlig', GEMINI_API_KEY: 'gk' })
-    assert.equal(r.status, 502); assert.equal(calls, 1)
-    assert.match(JSON.parse(r.body).error, /API key not valid/)
-  } finally { globalThis.fetch = orig; console.error = origErr }
-})
-test('Gemini: alla modeller överbelastade ger begripligt fel', async () => {
-  const orig = globalThis.fetch
-  const origErr = console.error; console.error = () => {}
-  let calls = 0
-  globalThis.fetch = async () => { calls++; return new Response('{}', { status: 503 }) }
-  try {
-    const r = await handle('POST', h(), JSON.stringify({ text: 'kebab' }), { ALLOWED_ORIGIN: 'https://app.example', APP_TOKEN: 'hemlig', GEMINI_API_KEY: 'gk' })
-    assert.equal(r.status, 502); assert.equal(calls, 4)
-    assert.match(JSON.parse(r.body).error, /överbelastad/)
-  } finally { globalThis.fetch = orig; console.error = origErr }
 })

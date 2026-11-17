@@ -4,7 +4,8 @@ compatibility_date = "2026-11-01"
 
 [vars]
 ALLOWED_ORIGIN = "https://hagnelius.github.io"
-# AI_PROVIDER väljs automatiskt utifrån vilken nyckel som finns: GEMINI_API_KEY → gemini (gratisnivå),
-# ANTHROPIC_API_KEY → anthropic, OPENAI_API_KEY → openai. Sätt den bara om du vill tvinga ett val.
-# AI_PROVIDER = "gemini"
-# AI_MODEL = "gemini-flash-latest"   # standard för Gemini
+# Hemligheter (npx wrangler secret put ...): OPENAI_API_KEY och APP_TOKEN.
+# AI_PROVIDER väljs automatiskt: OPENAI_API_KEY → openai, annars anthropic (ANTHROPIC_API_KEY).
+AI_PROVIDER = "openai"
+AI_MODEL = "gpt-6-luna"
+# AI_REASONING = "low"   # none (snabbast), low, medium, high
