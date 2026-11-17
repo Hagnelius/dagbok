@@ -70,7 +70,7 @@ export default function App() {
     case 'mat': page = <AddFoodPage date={date} initialTab={second} meal={route.query.get('maltid')} />; break
     case 'traning': page = <WorkoutPage date={date} />; break
     case 'vikt': page = <WeightPage date={date} />; break
-    case 'ai': page = <AiPage key={route.query.get('lage') ?? 'text'} date={date} mode={route.query.get('lage')} />; break
+    case 'ai': page = <AiPage key={`${route.query.get('lage') ?? 'text'}:${route.query.get('maltid') ?? ''}`} date={date} mode={route.query.get('lage')} meal={route.query.get('maltid')} />; break
     case 'historik': page = <HistoryPage />; tab = 'historik'; break
     case 'analys': page = <AnalysisPage />; tab = 'analys'; break
     case 'favoriter': page = <LibraryPage tab={second} />; break

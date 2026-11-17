@@ -144,7 +144,7 @@ export default function DayPage({ date }: { date: string }) {
                 <div className="flex items-center gap-1">
                   {list.length > 0 && <span className="text-sm text-muted tabular mr-1">{fmtInt(t.kcal)} kcal · {fmtInt(t.protein)} g</span>}
                   <button type="button" aria-label={`Fler val för ${MEAL_LABEL[meal].toLowerCase()}`} onClick={() => setMealMenu(meal)} className="min-h-11 min-w-11 rounded-full text-muted active:bg-card-2 text-xl">⋯</button>
-                  <a href={`#/mat/snabb?maltid=${meal}${isToday ? '' : `&datum=${date}`}`} aria-label={`Lägg till i ${MEAL_LABEL[meal].toLowerCase()}`} className="min-h-11 min-w-11 rounded-full bg-card border border-line text-brand text-xl font-bold flex items-center justify-center active:bg-card-2">+</a>
+                  <a href={`#/ai?maltid=${meal}${isToday ? '' : `&datum=${date}`}`} aria-label={`Lägg till i ${MEAL_LABEL[meal].toLowerCase()}`} className="min-h-11 min-w-11 rounded-full bg-card border border-line text-brand text-xl font-bold flex items-center justify-center active:bg-card-2">+</a>
                 </div>
               </div>
               {list.length > 0 && (
