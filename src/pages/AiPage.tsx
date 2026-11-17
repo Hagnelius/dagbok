@@ -8,12 +8,13 @@ import { fmtDec, fmtInt } from '../lib/format'
 import { ACTIVITY_LABEL, INTENSITY_LABEL, MEAL_LABEL, UNIT_LABEL } from '../lib/labels'
 import { localProvider, parsePastedResponse, pasteModePrompt, serverProvider } from '../lib/ai/providers'
 import { acceptInterpretation, cancelInterpretation, saveInterpretation } from '../lib/ai/commit'
-import { saveSettings } from '../lib/repo'
+import { saveMealTemplate, saveSettings } from '../lib/repo'
 import { ACTIVITIES, MEALS, UNITS, type AiFoodItem, type AiResult, type AiWorkoutItem, type ActivityType, type Intensity, type MealType, type Unit } from '../lib/types'
 import { navigate } from '../router'
 import { rescale } from '../lib/units'
 import { prepareImage, type PreparedImage } from '../lib/ai/image'
-import { focusAtEnd, updateAndFocus } from '../lib/keyboard'
+import { focusAtEnd, updateAndFocus, updateAndOpenCamera } from '../lib/keyboard'
+import { uid } from '../lib/db'
 
 interface Review { id: string; provider: string; result: AiResult; foods: Array<AiFoodItem & { keep: boolean }>; workouts: Array<AiWorkoutItem & { keep: boolean }> }
 
@@ -107,13 +108,17 @@ export default function AiPage({ date, mode: modeParam }: { date: string; mode?:
         await analyze(t, true)
       }}
       onCancel={async () => { await cancelInterpretation(review.id); setReview(null); toast('Inget sparades') }}
-      onSave={async () => {
+      onSave={async (templateName?: string) => {
         const foods = review.foods.filter((f) => f.keep).map(({ keep: _k, ...f }) => { void _k; return f })
         const workouts = review.workouts.filter((w) => w.keep).map(({ keep: _k, ...w }) => { void _k; return w })
         await acceptInterpretation(review.id, foods, workouts, { date, time: ctx.now }, review.foods.length + review.workouts.length)
+        // Spara som standardmåltid så att den kan läggas in med ett tryck under Snabbregistrera.
+        if (templateName && foods.length) {
+          await saveMealTemplate({ name: templateName, meal: foods[0].meal, items: foods.map((f) => ({ id: uid(), name: f.name, amount: f.amount, unit: f.unit, kcal: f.kcal, protein: f.protein, fat: f.fat, carbs: f.carbs })) })
+        }
         if (isPhoto) { setPhotoNote(''); setPhoto(null) } else setText('')
         setReview(null)
-        toast(`${foods.length + workouts.length} poster sparade`)
+        toast(`${foods.length + workouts.length} poster sparade${templateName && foods.length ? ' · standardmåltid sparad' : ''}`)
         navigate(date === today ? '/' : `/dag/${date}`)
       }} />
   }
@@ -122,25 +127,24 @@ export default function AiPage({ date, mode: modeParam }: { date: string; mode?:
     <div>
       <PageHeader title={isPhoto ? 'Fota maten' : 'Skriv eller prata in'} back="/" subtitle={relativeDayLabel(date, today)} />
       <div className="max-w-2xl mx-auto px-4 grid gap-3 pb-6">
-        <Segmented label="Sätt att beskriva" value={mode} onChange={(m) => { const u = () => { setMode(m); setError(undefined) }; if (m === 'text') updateAndFocus(u); else u() }}
+        <Segmented label="Sätt att beskriva" value={mode} onChange={(m) => { const u = () => { setMode(m); setError(undefined) }; if (m === 'text') updateAndFocus(u); else if (!photo) updateAndOpenCamera(u); else u() }}
           options={[{ value: 'text', label: '🎙️ Skriv eller prata' }, { value: 'foto', label: '📷 Foto' }]} />
 
         {isPhoto ? (
           <Card>
-            <p className="text-sm text-muted mb-3">Ta en bild på tallriken, gärna ovanifrån. AI:n gör en uppskattning som du granskar och justerar innan något sparas.</p>
             {photo ? (
               <div className="grid gap-2">
                 <img src={photo.dataUrl} alt="Valt foto av måltiden" className="w-full max-h-80 object-cover rounded-2xl border border-line" />
                 <label className="text-brand font-semibold min-h-11 flex items-center justify-center cursor-pointer">
-                  Byt bild
-                  <input type="file" accept="image/*" className="sr-only" onChange={(e) => { void onPickPhoto(e.target.files?.[0]); e.target.value = '' }} />
+                  Ta ny bild
+                  <input type="file" accept="image/*" capture="environment" className="sr-only" onChange={(e) => { void onPickPhoto(e.target.files?.[0]); e.target.value = '' }} />
                 </label>
               </div>
             ) : (
               <label className="flex flex-col items-center justify-center gap-2 min-h-44 rounded-2xl border-2 border-dashed border-line bg-card-2 cursor-pointer active:opacity-80 font-semibold text-[17px]">
                 <span aria-hidden="true" className="text-4xl">📷</span>
-                Ta foto eller välj bild
-                <input type="file" accept="image/*" className="sr-only" aria-label="Ta foto eller välj bild" onChange={(e) => { void onPickPhoto(e.target.files?.[0]); e.target.value = '' }} />
+                Ta foto
+                <input id="photo-input" type="file" accept="image/*" capture="environment" className="sr-only" aria-label="Ta foto" onChange={(e) => { void onPickPhoto(e.target.files?.[0]); e.target.value = '' }} />
               </label>
             )}
             <label htmlFor="photo-note" className="font-medium block mt-3 mb-1">Kommentar (valfritt)</label>
@@ -148,13 +152,11 @@ export default function AiPage({ date, mode: modeParam }: { date: string; mode?:
               placeholder="T.ex. lättmjölk i glaset, stekt i smör, åt halva" />
             {error && <p className="text-danger text-[15px] mt-2" role="alert">{error}</p>}
             <Button variant="primary" block className="mt-3 min-h-14 text-[17px]" onClick={() => analyze()} disabled={busy || !photo} aria-busy={busy}>
-              {busy ? 'Analyserar fotot …' : 'Analysera foto'}
+              {busy ? 'Analyserar …' : 'Analysera'}
             </Button>
             <p className="text-sm text-muted mt-2">
-              {photoVia === 'server'
-                ? <>Fotot analyseras av din serverfunktion{endpointHost ? ` (${endpointHost})` : ''}. Bilden förminskas och platsdata tas bort innan den skickas.</>
-                : <>Fotot analyseras med valfri AI-tjänst, t.ex. Claude-appen: du delar bilden och klistrar in svaret. Inget skickas automatiskt. Med en egen serverfunktion sker det direkt i appen.</>}
-              {' '}<a href="#/installningar/ai" className="text-brand underline">Ändra</a>
+              Tolkning: {photoVia === 'server' ? 'serverfunktion' : 'klistra in AI-svar'}
+              {' · '}<a href="#/installningar/ai" className="text-brand underline">Ändra</a>
             </p>
           </Card>
         ) : (
@@ -259,10 +261,13 @@ function PasteFlow({ prompt, photo, pasted, setPasted, onParse }: { prompt: stri
 function ReviewView({ review, setReview, date, today, followUp, setFollowUp, onSave, onCancel, onRefine, thumb }: {
   thumb?: string
   review: Review; setReview: (r: Review) => void; date: string; today: string; followUp: string; setFollowUp: (s: string) => void
-  onSave: () => void; onCancel: () => void; onRefine: () => void
+  onSave: (templateName?: string) => void | Promise<void>; onCancel: () => void; onRefine: () => void
 }) {
   const [saving, setSaving] = useState(false)
+  const [saveTemplate, setSaveTemplate] = useState(false)
   const kept = review.foods.filter((f) => f.keep)
+  const suggestedName = (() => { const n = kept.map((f) => f.name).join(', '); return n.length > 40 ? n.slice(0, 38).trimEnd() + ' …' : n })()
+  const [templateName, setTemplateName] = useState('')
   const keptW = review.workouts.filter((w) => w.keep)
   const kcal = kept.reduce((s, f) => s + f.kcal, 0)
   const protein = kept.reduce((s, f) => s + f.protein, 0)
@@ -275,7 +280,7 @@ function ReviewView({ review, setReview, date, today, followUp, setFollowUp, onS
     <div>
       <HideNav />
       <PageHeader title="Granska förslaget" subtitle={`Inget är sparat ännu · ${relativeDayLabel(date, today)}`} />
-      <div className="max-w-2xl mx-auto px-4 grid gap-3 pb-44">
+      <div className="max-w-2xl mx-auto px-4 grid gap-3 pb-64">
         <h2 id="review-title" tabIndex={-1} className="sr-only">Granska tolkningen</h2>
         {thumb && <img src={thumb} alt="Fotot som analyserades" className="h-28 w-28 object-cover rounded-2xl border border-line" />}
         <div className="flex flex-wrap gap-2 text-sm items-center" aria-label="Förklaring av markeringar">
@@ -356,10 +361,19 @@ function ReviewView({ review, setReview, date, today, followUp, setFollowUp, onS
       </div>
       <div className="fixed bottom-0 inset-x-0 z-50 bg-bg/95 backdrop-blur border-t border-line px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
         <div className="max-w-2xl mx-auto">
+          {kept.length > 0 && (
+            <div className="mb-2">
+              <label className="flex items-center gap-2 min-h-11">
+                <input type="checkbox" className="h-5 w-5 accent-[var(--brand)]" checked={saveTemplate} onChange={(e) => { setSaveTemplate(e.target.checked); if (e.target.checked && !templateName) setTemplateName(suggestedName) }} />
+                Spara som standardmåltid
+              </label>
+              {saveTemplate && <input className="field" aria-label="Namn på standardmåltiden" value={templateName} onChange={(e) => setTemplateName(e.target.value)} placeholder={suggestedName} />}
+            </div>
+          )}
           <p className="text-sm text-muted mb-2 tabular text-center">Valt: {kept.length} livsmedel · {fmtInt(kcal)} kcal · {fmtInt(protein)} g protein{keptW.length ? ` · ${keptW.length} pass` : ''}</p>
           <div className="flex gap-2">
             <Button onClick={onCancel}>Avbryt</Button>
-            <Button variant="primary" block disabled={saving || kept.length + keptW.length === 0} onClick={async () => { setSaving(true); try { await onSave() } finally { setSaving(false) } }}>
+            <Button variant="primary" block disabled={saving || kept.length + keptW.length === 0} onClick={async () => { setSaving(true); try { await onSave(saveTemplate ? (templateName.trim() || suggestedName) : undefined) } finally { setSaving(false) } }}>
               {kept.length + keptW.length === review.foods.length + review.workouts.length ? 'Godkänn och spara allt' : `Spara valda (${kept.length + keptW.length})`}
             </Button>
           </div>

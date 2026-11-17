@@ -60,3 +60,18 @@ export function updateAndFocus(update: () => void, id = 'ai-text') {
   flushSync(update)
   focusAtEnd(document.getElementById(id) as HTMLTextAreaElement | null)
 }
+
+/** Byter sida och öppnar kameran (filfältet med capture) i samma tryck – sparar ett tryck. */
+export function navigateAndOpenCamera(to: string, id = 'photo-input') {
+  flushSync(() => {
+    history.pushState(null, '', '#' + to)
+    window.dispatchEvent(new HashChangeEvent('hashchange'))
+  })
+  ;(document.getElementById(id) as HTMLInputElement | null)?.click()
+}
+
+/** Öppnar kameran i samma tryck efter en synkron tillståndsändring (t.ex. byte till fotoläge). */
+export function updateAndOpenCamera(update: () => void, id = 'photo-input') {
+  flushSync(update)
+  ;(document.getElementById(id) as HTMLInputElement | null)?.click()
+}
