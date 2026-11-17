@@ -20,7 +20,9 @@ interface Review { id: string; provider: string; result: AiResult; foods: Array<
 
 type Mode = 'text' | 'foto'
 
-export default function AiPage({ date, mode: modeParam }: { date: string; mode?: string | null }) {
+export default function AiPage({ date, mode: modeParam, meal: mealParam }: { date: string; mode?: string | null; meal?: string | null }) {
+  // Öppnad via + vid en måltid: allt som tolkas hamnar i den måltiden.
+  const meal = MEALS.includes(mealParam as MealType) ? (mealParam as MealType) : undefined
   const today = useToday()
   const toast = useToast()
   const settings = useSettings()
@@ -55,6 +57,7 @@ export default function AiPage({ date, mode: modeParam }: { date: string; mode?:
         : 'Hittade ingen mat eller träning i texten. Prova att skriva mängd och livsmedel, t.ex. "2 ägg och 1 banan", eller använd manuell registrering.')
       return
     }
+    if (meal) result = { ...result, foods: result.foods.map((f) => ({ ...f, meal })) }
     const id = await saveInterpretation(inputText, providerId, result, isPhoto && photo ? { thumb: photo.thumb } : undefined)
     setReview({ id, provider: providerId, result, foods: result.foods.map((f) => ({ ...f, keep: true })), workouts: result.workouts.map((w) => ({ ...w, keep: true })) })
     setFollowUp('')
@@ -125,7 +128,7 @@ export default function AiPage({ date, mode: modeParam }: { date: string; mode?:
 
   return (
     <div>
-      <PageHeader title={isPhoto ? 'Fota maten' : 'Skriv eller prata in'} back="/" subtitle={relativeDayLabel(date, today)} />
+      <PageHeader title={isPhoto ? 'Fota maten' : 'Skriv eller prata in'} back="/" subtitle={`${relativeDayLabel(date, today)}${meal ? ` · ${MEAL_LABEL[meal]}` : ''}`} />
       <div className="max-w-2xl mx-auto px-4 grid gap-3 pb-6">
         <Segmented label="Sätt att beskriva" value={mode} onChange={(m) => { const u = () => { setMode(m); setError(undefined) }; if (m === 'text') updateAndFocus(u); else if (!photo) updateAndOpenCamera(u); else u() }}
           options={[{ value: 'text', label: '🎙️ Skriv eller prata' }, { value: 'foto', label: '📷 Foto' }]} />
