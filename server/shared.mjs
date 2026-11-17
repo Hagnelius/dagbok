@@ -37,6 +37,7 @@ Regler:
 - Använd svenska typvärden (Livsmedelsverket) och var realistisk. Ange "angivet" endast för sådant som står i texten.
 - Träningskalorier är nettoförbrukning utöver vila och alltid "uppskattat".
 - Hitta inte på mat eller träning som inte nämns.
+- Svara kort: utelämna fält som saknas eller är tomma (t.ex. date, time, note, distanceKm, avgHr, followUpQuestion) och tomma listor. Högst tre korta antaganden och tre osäkerheter.
 
 Dagens datum: ${today}. Klockan: ${now}.${weightKg ? ` Kroppsvikt: ${weightKg} kg (för att uppskatta träningskalorier).` : ''}
 

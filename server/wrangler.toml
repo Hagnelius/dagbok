@@ -8,4 +8,4 @@ ALLOWED_ORIGIN = "https://hagnelius.github.io"
 # AI_PROVIDER väljs automatiskt: OPENAI_API_KEY → openai, annars anthropic (ANTHROPIC_API_KEY).
 AI_PROVIDER = "openai"
 AI_MODEL = "gpt-6-luna"
-# AI_REASONING = "low"   # none (snabbast), low, medium, high
+AI_REASONING = "none"   # none (snabbast), low (kodens standard), medium, high
