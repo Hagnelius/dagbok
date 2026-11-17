@@ -125,17 +125,29 @@ with sync_playwright() as p:
 
     # --- AI: skriv in, granska, inget sparat förrän godkänt ---
     page.goto(URL + "#/ai")
+    expect(page.get_by_label("Beskriv vad du ätit eller hur du tränat")).to_be_focused()  # tangentbordet direkt
+    expect(page.get_by_role("button", name="🎙️ Lyssna")).to_have_count(0)  # webbläsarens taligenkänning borttagen
+    # Via Lägg till-menyn: textrutan får fokus och det osynliga hjälpfältet är borta.
+    page.goto(URL + "#/")
+    page.get_by_role("link", name="Skriv eller prata in").first.click()
+    expect(page.get_by_label("Beskriv vad du ätit eller hur du tränat")).to_be_focused()
+    assert page.locator('input[aria-hidden="true"]').count() == 0
     page.get_by_label("Beskriv vad du ätit eller hur du tränat").fill("Till lunch åt jag en omelett på tre ägg, 30 gram riven ost, 30 gram keso, en halv tomat, två matskedar purjolök och lite smör. Sedan 45 minuter crosstrainer.")
-    page.get_by_role("button", name="Analysera text").click()
+    page.get_by_role("button", name="Analysera", exact=True).click()
     expect(page.get_by_role("heading", name="Granska förslaget")).to_be_visible()
     expect(page.get_by_text("Osäkert").first).to_be_visible()
     shot(page, "05-ai-granska")
     page.get_by_role("checkbox", name="Ta med Purjolök").uncheck()
+    page.get_by_role("checkbox", name="Spara som standardmåltid").check()
+    page.get_by_label("Namn på standardmåltiden").fill("Min omelett")
     page.get_by_role("button", name=re.compile("Spara valda")).click()
     expect(page.get_by_role("heading", name="Idag")).to_be_visible()
     expect(page.get_by_text("Hårdost 28 %")).to_be_visible()
     expect(page.get_by_text("Purjolök")).to_have_count(0)
     expect(page.get_by_text("Crosstrainer").first).to_be_visible()
+    page.goto(URL + "#/mat/snabb")
+    expect(page.get_by_text("Min omelett").first).to_be_visible()  # sparad som standardmåltid
+    page.goto(URL + "#/")
 
     # --- AI via serverfunktion: samtycke krävs innan något skickas ---
     page.goto(URL + "#/installningar/ai")
@@ -144,7 +156,7 @@ with sync_playwright() as p:
     page.get_by_role("button", name="Spara", exact=True).click()
     page.goto(URL + "#/ai")
     page.get_by_label("Beskriv vad du ätit eller hur du tränat").fill("Pizza till middag")
-    page.get_by_role("button", name="Analysera text").click()
+    page.get_by_role("button", name="Analysera", exact=True).click()
     expect(page.get_by_role("dialog", name="Skicka text för tolkning?")).to_be_visible()
     assert len(received) == 0, "Inget får skickas före samtycke"
     page.get_by_role("button", name="Godkänn och skicka").click()
@@ -157,13 +169,16 @@ with sync_playwright() as p:
     img_page = b.new_page(viewport={"width": 1600, "height": 1200})
     img_page.set_content('<div style="width:1600px;height:1200px;background:radial-gradient(circle,#f4a261 0 30%,#2a9d8f 31% 60%,#eee 61%)"></div>')
     img_path = str(SHOTS / "test-maltid.jpg"); img_page.screenshot(path=img_path, type="jpeg"); img_page.close()
-    page.goto(URL + "#/ai?lage=foto")
+    page.goto(URL + "#/")
+    with page.expect_file_chooser() as fc:  # kameran öppnas direkt i samma tryck
+        page.get_by_role("link", name="Fota maten").first.click()
+    assert fc.value.element.get_attribute("capture") == "environment"
+    fc.value.set_files(img_path)
     expect(page.get_by_role("heading", name="Fota maten")).to_be_visible()
-    page.get_by_label("Ta foto eller välj bild").set_input_files(img_path)
     expect(page.get_by_alt_text("Valt foto av måltiden")).to_be_visible()
     page.get_by_label("Kommentar (valfritt)").fill("stekt i lite smör")
     n_before = len(received)
-    page.get_by_role("button", name="Analysera foto").click()
+    page.get_by_role("button", name="Analysera", exact=True).click()
     expect(page.get_by_role("dialog", name="Skicka foto för analys?")).to_be_visible()
     assert len(received) == n_before, "Inget foto får skickas före samtycke"
     shot(page, "14-foto-samtycke")
