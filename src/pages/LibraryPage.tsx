@@ -212,7 +212,7 @@ function WorkoutTemplateEditor({ item, onDone }: { item?: WorkoutTemplate; onDon
   const [err, setErr] = useState<string>()
   return (
     <div className="grid gap-3">
-      <TextInput label="Namn" value={name} onChange={(e) => setName(e.target.value)} placeholder="T.ex. Fotbollsträning" />
+      <TextInput label="Namn" value={name} onChange={(e) => setName(e.target.value)} placeholder="T.ex. Morgonpass" />
       <Select label="Aktivitet" value={activity} onChange={setActivity} options={ACTIVITIES.map((a) => ({ value: a, label: ACTIVITY_LABEL[a] }))} />
       <TextInput label="Beskrivning (valfritt)" value={label} onChange={(e) => setLabel(e.target.value)} />
       <NumberValueField label="Varaktighet" value={duration} onValue={setDuration} suffix="min" integer />
