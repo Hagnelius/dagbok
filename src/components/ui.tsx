@@ -181,11 +181,16 @@ export function Sheet({ open, onClose, title, children, footer }: { open: boolea
     if (!open) return
     const onClose = () => closeRef.current()
     const prev = document.activeElement as HTMLElement | null
+    const node = ref.current
     const t = setTimeout(() => ref.current?.querySelector<HTMLElement>('[data-autofocus], input, select, textarea, button')?.focus({ preventScroll: true }), 50)
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
-    return () => { clearTimeout(t); document.removeEventListener('keydown', onKey); document.body.style.overflow = ''; prev?.focus?.({ preventScroll: true }) }
+    return () => { clearTimeout(t); document.removeEventListener('keydown', onKey); document.body.style.overflow = ''
+      // Återställ fokus bara om inget annat fält redan tagit det (t.ex. för att öppna tangentbordet direkt).
+      const a = document.activeElement
+      if (!a || a === document.body || node?.contains(a)) prev?.focus?.({ preventScroll: true })
+    }
   }, [open])
   if (!open) return null
   return (

@@ -128,7 +128,6 @@ function AiSettings() {
   const toast = useToast()
   const [endpoint, setEndpoint] = useState(settings.aiEndpoint)
   const [token, setToken] = useState(() => { try { return localStorage.getItem('dagbok.ai-token') ?? '' } catch { return '' } })
-  const speechSupported = typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)
   const urlError = endpoint && !/^https:\/\/|^http:\/\/localhost|^http:\/\/127\.0\.0\.1/.test(endpoint) ? 'Adressen måste börja med https://' : undefined
   return (
     <Card aria-labelledby="h-ai">
@@ -165,12 +164,6 @@ function AiSettings() {
             <p className="text-sm text-muted">Du godkände att foton skickas {formatShort(settings.aiPhotoConsentAt.slice(0, 10))}. <button type="button" className="text-brand underline min-h-11" onClick={() => saveSettings({ aiPhotoConsentAt: undefined })}>Återkalla</button></p>
           )}
         </div>
-      )}
-      {speechSupported && (
-        <label className="flex gap-3 items-start mt-4 min-h-11">
-          <input type="checkbox" className="h-5 w-5 mt-0.5 accent-[var(--brand)]" checked={settings.speechRecognition} onChange={(e) => saveSettings({ speechRecognition: e.target.checked })} />
-          <span><span className="block font-medium">Visa knapp för webbläsarens taligenkänning</span><span className="block text-sm text-muted">Valfritt. Ljudet kan behandlas av webbläsarens leverantör (t.ex. Apple eller Google). Tangentbordets vanliga mikrofonknapp fungerar alltid.</span></span>
-        </label>
       )}
     </Card>
   )
