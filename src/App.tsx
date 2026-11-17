@@ -6,6 +6,7 @@ import { useProfile, useSettings, useToday, useOnline } from './hooks'
 import { isDateKey } from './lib/dates'
 import { db } from './lib/db'
 import { migrateSettings } from './lib/repo'
+import { primeKeyboard } from './lib/keyboard'
 import DayPage from './pages/DayPage'
 import Onboarding from './pages/Onboarding'
 import AddFoodPage from './pages/AddFoodPage'
@@ -43,6 +44,15 @@ export default function App() {
   const [addOpen, setAddOpen] = useState(false)
   const demo = useLiveQuery(() => db.entries.filter((e) => !!e.isDemo).count(), [])
   useEffect(() => { void migrateSettings() }, [profile?.id])
+  // Länkar till "Skriv eller prata in": öppna tangentbordet redan i trycket (se lib/keyboard.ts).
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      const a = (e.target as Element | null)?.closest?.('a[href^="#/ai"]')
+      if (a && !a.getAttribute('href')?.includes('lage=foto')) primeKeyboard()
+    }
+    document.addEventListener('click', onClick, true)
+    return () => document.removeEventListener('click', onClick, true)
+  }, [])
 
   if (profile === undefined) return <div className="min-h-dvh" aria-busy="true" />
   if (profile === null) return <ToastProvider><Onboarding /></ToastProvider>
@@ -122,7 +132,7 @@ function BottomNav({ active, onAdd }: { active: string | null; onAdd: () => void
 
 function AddSheet({ open, onClose, date, today }: { open: boolean; onClose: () => void; date: string; today: string }) {
   const q = date !== today ? `?datum=${date}` : ''
-  const go = (to: string) => { onClose(); navigate(to + (q && to.includes('?') ? q.replace('?', '&') : q)) }
+  const go = (to: string) => { if (to === '/ai') primeKeyboard(); onClose(); navigate(to + (q && to.includes('?') ? q.replace('?', '&') : q)) }
   const opt = (icon: string, label: string, help: string, to: string, tone: string) => (
     <button type="button" onClick={() => go(to)} className="flex items-center gap-3 w-full text-left bg-card border border-line rounded-2xl p-3 min-h-16 active:bg-card-2">
       <span className={cx('h-11 w-11 rounded-xl flex items-center justify-center text-xl', tone)} aria-hidden="true">{icon}</span>

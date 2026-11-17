@@ -13,6 +13,7 @@ import { ACTIVITIES, MEALS, UNITS, type AiFoodItem, type AiResult, type AiWorkou
 import { navigate } from '../router'
 import { rescale } from '../lib/units'
 import { prepareImage, type PreparedImage } from '../lib/ai/image'
+import { focusAtEnd, primeKeyboard } from '../lib/keyboard'
 
 const EXAMPLES = [
   'Till lunch åt jag en omelett på tre ägg, 30 gram riven ost, 30 gram keso, en halv tomat, två matskedar purjolök och lite smör.',
@@ -21,11 +22,6 @@ const EXAMPLES = [
 ]
 
 interface Review { id: string; provider: string; result: AiResult; foods: Array<AiFoodItem & { keep: boolean }>; workouts: Array<AiWorkoutItem & { keep: boolean }> }
-
-// Web Speech API (progressiv förbättring – finns inte i alla webbläsare)
-type SR = { lang: string; interimResults: boolean; continuous: boolean; start(): void; stop(): void; onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null; onend: (() => void) | null; onerror: (() => void) | null }
-const SpeechRec = (globalThis as unknown as { SpeechRecognition?: new () => SR; webkitSpeechRecognition?: new () => SR }).SpeechRecognition
-  ?? (globalThis as unknown as { webkitSpeechRecognition?: new () => SR }).webkitSpeechRecognition
 
 type Mode = 'text' | 'foto'
 
@@ -46,8 +42,7 @@ export default function AiPage({ date, mode: modeParam }: { date: string; mode?:
   const [pasteOpen, setPasteOpen] = useState(false)
   const [pasted, setPasted] = useState('')
   const [followUp, setFollowUp] = useState('')
-  const [listening, setListening] = useState(false)
-  const recRef = useRef<SR | null>(null)
+  const textRef = useRef<HTMLTextAreaElement>(null)
   const recent = useLiveQuery(() => db.aiInterpretations.orderBy('createdAt').reverse().limit(8).toArray(), []) ?? []
 
   const ctx = { today: date, now: date === today ? nowTime() : '12:00', weightKg: weight?.weight }
@@ -104,18 +99,9 @@ export default function AiPage({ date, mode: modeParam }: { date: string; mode?:
     catch (e) { setError((e as Error).message || 'Bilden kunde inte läsas.') }
   }
 
-  const toggleMic = () => {
-    if (!SpeechRec) return
-    if (listening) { recRef.current?.stop(); return }
-    const r = new SpeechRec()
-    r.lang = 'sv-SE'; r.interimResults = false; r.continuous = false
-    r.onresult = (e) => { const t = Array.from(e.results).map((x) => x[0].transcript).join(' '); setText((text ? text + ' ' : '') + t) }
-    r.onend = () => setListening(false)
-    r.onerror = () => setListening(false)
-    recRef.current = r
-    setListening(true)
-    r.start()
-  }
+  // Textrutan får fokus direkt så att tangentbordet (med mikrofonknappen) redan är uppe.
+  const showingText = !isPhoto && !review
+  useEffect(() => { if (showingText) focusAtEnd(textRef.current) }, [showingText])
 
   if (review) {
     return <ReviewView review={review} setReview={setReview} date={date} today={today} followUp={followUp} setFollowUp={setFollowUp} thumb={isPhoto ? photo?.thumb : undefined}
@@ -142,7 +128,7 @@ export default function AiPage({ date, mode: modeParam }: { date: string; mode?:
     <div>
       <PageHeader title={isPhoto ? 'Fota maten' : 'Skriv eller prata in'} back="/" subtitle={relativeDayLabel(date, today)} />
       <div className="max-w-2xl mx-auto px-4 grid gap-3 pb-6">
-        <Segmented label="Sätt att beskriva" value={mode} onChange={(m) => { setMode(m); setError(undefined) }}
+        <Segmented label="Sätt att beskriva" value={mode} onChange={(m) => { if (m === 'text') primeKeyboard(); setMode(m); setError(undefined) }}
           options={[{ value: 'text', label: '🎙️ Skriv eller prata' }, { value: 'foto', label: '📷 Foto' }]} />
 
         {isPhoto ? (
@@ -180,13 +166,10 @@ export default function AiPage({ date, mode: modeParam }: { date: string; mode?:
         ) : (
           <Card>
             <label htmlFor="ai-text" className="font-semibold block mb-1">Beskriv vad du ätit eller hur du tränat</label>
-            <p id="ai-help" className="text-sm text-muted mb-2">Skriv med egna ord eller tryck på <b>mikrofonen</b> på tangentbordet för att diktera. Ange gärna mängder. Du får granska allt innan något sparas.</p>
-            <textarea id="ai-text" aria-describedby="ai-help" className="field min-h-44 text-[17px] leading-relaxed" value={text} onChange={(e) => setText(e.target.value)}
+            <p id="ai-help" className="text-sm text-muted mb-2">Skriv med egna ord eller tryck på <b>mikrofonen 🎙</b> nere till höger på tangentbordet för att diktera. Ange gärna mängder. Du får granska allt innan något sparas.</p>
+            <textarea ref={textRef} id="ai-text" aria-describedby="ai-help" className="field min-h-44 text-[17px] leading-relaxed" value={text} onChange={(e) => setText(e.target.value)}
               placeholder="T.ex. Till lunch åt jag 150 g kyckling, 2 dl ris och en sallad. Sen promenad 30 minuter." autoCapitalize="sentences" spellCheck enterKeyHint="enter" />
             <div className="flex gap-2 mt-2">
-              {settings.speechRecognition && SpeechRec && (
-                <Button onClick={toggleMic} aria-pressed={listening} className={cx(listening && 'border-brand text-brand')}>{listening ? '■ Stoppa' : '🎙️ Lyssna'}</Button>
-              )}
               {text && <Button variant="ghost" onClick={() => setText('')}>Rensa</Button>}
             </div>
             {error && <p className="text-danger text-[15px] mt-2" role="alert">{error}</p>}
@@ -216,7 +199,7 @@ export default function AiPage({ date, mode: modeParam }: { date: string; mode?:
                   <div className="min-w-0 flex-1">
                     <div className="flex justify-between text-sm text-muted mb-1"><span>{formatShort(r.createdAt.slice(0, 10))} · {r.provider === 'lokal' ? 'lokal' : r.provider}</span><span>{{ vantar: 'Ej granskad', godkand: 'Godkänd', delvis: 'Delvis godkänd', avbruten: 'Avbruten' }[r.status]}</span></div>
                     <p className="line-clamp-3">"{r.inputText}"</p>
-                    {r.inputKind !== 'foto' && <button type="button" className="text-brand font-semibold text-sm min-h-11" onClick={() => { setMode('text'); setText(r.inputText) }}>Använd texten igen</button>}
+                    {r.inputKind !== 'foto' && <button type="button" className="text-brand font-semibold text-sm min-h-11" onClick={() => { primeKeyboard(); setMode('text'); setText(r.inputText) }}>Använd texten igen</button>}
                   </div>
                 </li>
               ))}
