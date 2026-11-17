@@ -11,7 +11,7 @@ import type { ActivityLevel, ExerciseCalorieMode, GoalCalculation, MainGoal, Sex
  *    INTE läggs till dagens budget (läge "separat"). Annars skulle träningen räknas två gånger.
  * 4. Underskott = takt (kg/vecka) × 7 700 kcal ÷ 7, begränsat till max 25 % av energibehovet och så att
  *    målet inte understiger ett golv (max av BMR och 1 500 kcal män / 1 200 kcal kvinnor).
- * 5. Protein = 1,8 g/kg referensvikt (2,0 g/kg om "behålla muskelmassa" valts och underskott finns).
+ * 5. Protein = 1,8 g/kg referensvikt (2,0 g/kg om "behålla muskelmassa" eller "bygga muskler" valts och underskott finns).
  *    Referensvikt = målvikten om den är lägre än nuvarande vikt, annars nuvarande vikt.
  * 6. Fett ≈ 30 % av energin, kolhydrater = resten.
  */
@@ -74,11 +74,11 @@ export function calculateTargets(i: TargetInput): TargetResult {
   const pctPerWeek = (i.rateKgPerWeek / i.weightKg) * 100
   if (losing && pctPerWeek > 1) {
     warnings.push(`Önskad takt motsvarar ${pctPerWeek.toFixed(2).replace('.', ',')} % av kroppsvikten per vecka. En takt på högst 0,5–1 % per vecka brukar vara lättare att hålla och skonsammare för muskelmassan.`)
-    saferRate = Math.floor(((i.weightKg * 0.0075) / 0.25)) * 0.25 || 0.25
+    saferRate = Math.max(0.1, Math.floor((i.weightKg * 0.0075) * 10) / 10)
   }
   if (appliedDeficit < requestedDeficit - 1) {
     warnings.push(`Underskottet har begränsats från ${Math.round(requestedDeficit)} till ${Math.round(appliedDeficit)} kcal/dag så att målet inte blir för lågt. Det motsvarar ungefär ${((appliedDeficit * 7) / KCAL_PER_KG).toFixed(2).replace('.', ',')} kg per vecka.`)
-    saferRate ??= Math.max(0.25, Math.floor(((appliedDeficit * 7) / KCAL_PER_KG) / 0.25) * 0.25)
+    saferRate ??= Math.max(0.1, Math.floor(((appliedDeficit * 7) / KCAL_PER_KG) * 10) / 10)
   }
   const goalBmi = bmi(i.goalWeightKg, i.heightCm)
   if (goalBmi < 18.5) warnings.push('Målvikten motsvarar ett BMI under 18,5. Överväg att diskutera målet med vårdpersonal.')
@@ -87,7 +87,7 @@ export function calculateTargets(i: TargetInput): TargetResult {
   const kcal = roundTo(tdee - appliedDeficit, 10)
 
   const refWeight = i.goalWeightKg > 0 && i.goalWeightKg < i.weightKg ? i.goalWeightKg : i.weightKg
-  const proteinPerKg = i.mainGoals.includes('behalla_muskler') && appliedDeficit > 0 ? 2.0 : 1.8
+  const proteinPerKg = (i.mainGoals.includes('behalla_muskler') || i.mainGoals.includes('bygga_muskler')) && appliedDeficit > 0 ? 2.0 : 1.8
   const protein = roundTo(refWeight * proteinPerKg, 5)
   const fat = roundTo((kcal * 0.3) / 9, 5)
   const carbs = Math.max(0, roundTo((kcal - protein * 4 - fat * 9) / 4, 5))

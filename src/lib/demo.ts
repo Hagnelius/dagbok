@@ -42,7 +42,7 @@ export async function loadDemoData(days = 28) {
       entries.push({ id: uid(), date, time, meal, name, amount: 1, unit: 'portion', kcal: Math.round(kcal * f), protein: Math.round(protein * f), source: 'manuell', isDemo: true, createdAt: t, updatedAt: t })
     }
     if (r() < 0.55) {
-      const kinds: Array<[Workout['activity'], number]> = [['crosstrainer', 45], ['gym', 60], ['fotboll', 90], ['promenad', 40]]
+      const kinds: Array<[Workout['activity'], number]> = [['crosstrainer', 45], ['gym', 60], ['cykling', 45], ['promenad', 40]]
       const [activity, dur] = kinds[Math.floor(r() * kinds.length)]
       workouts.push({ id: uid(), date, activity, durationMin: dur, intensity: 'medel', kcal: estimateWorkoutKcal(activity, 'medel', dur, weight), kcalEstimated: true, source: 'manuell', isDemo: true, createdAt: t, updatedAt: t })
     }
@@ -101,7 +101,7 @@ export async function seedStarterLibrary() {
   await db.workoutTemplates.bulkAdd([
     { ...base, id: uid(), sortOrder: 0, name: '45 min crosstrainer', activity: 'crosstrainer', durationMin: 45, intensity: 'medel' },
     { ...base, id: uid(), sortOrder: 1, name: '60 min gym, medel', activity: 'gym', durationMin: 60, intensity: 'medel' },
-    { ...base, id: uid(), sortOrder: 2, name: 'Fotbollsträning', activity: 'fotboll', label: 'Fotbollsträning', durationMin: 90, intensity: 'medel' },
+    { ...base, id: uid(), sortOrder: 2, name: 'Löprunda 30 min', activity: 'lopning', durationMin: 30, intensity: 'medel' },
     { ...base, id: uid(), sortOrder: 3, name: 'Promenad 30 min', activity: 'promenad', durationMin: 30, intensity: 'lag' },
   ])
 }

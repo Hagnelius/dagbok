@@ -5,7 +5,7 @@ export type ID = string
 
 export type Sex = 'man' | 'kvinna' | 'ej_angivet'
 export type ActivityLevel = 'stillasittande' | 'latt' | 'mattlig' | 'hog'
-export type MainGoal = 'viktnedgang' | 'behalla_muskler' | 'kondition' | 'fotbollskondition' | 'hel_match'
+export type MainGoal = 'viktnedgang' | 'behalla_vikt' | 'behalla_muskler' | 'bygga_muskler' | 'kondition' | 'battre_matvanor' | 'mer_energi'
 export type NutrientKey = 'kcal' | 'protein' | 'fat' | 'carbs'
 
 /** Användarprofil – en enda post med id "me". */
@@ -156,7 +156,7 @@ export interface Workout {
   date: string
   time?: string
   activity: ActivityType
-  /** Fritt namn för "annat" eller förtydligande, t.ex. "Fotbollsträning". */
+  /** Fritt namn för "annat" eller förtydligande, t.ex. "Padel". */
   label?: string
   durationMin: number
   intensity: Intensity

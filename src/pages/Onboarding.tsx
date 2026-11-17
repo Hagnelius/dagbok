@@ -10,7 +10,7 @@ import { nowIso } from '../lib/db'
 import { navigate } from '../router'
 import { DEFAULT_SETTINGS, type ActivityLevel, type ExerciseCalorieMode, type Goal, type MainGoal, type NutrientKey, type Profile, type Sex } from '../lib/types'
 
-const RATES = [0, 0.25, 0.5, 0.75, 1]
+const RATES = [0, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
 
 interface Props { existing?: Profile; currentGoal?: Goal; latestWeight?: number; exerciseMode?: ExerciseCalorieMode; onDone?: () => void }
 
@@ -27,7 +27,7 @@ export default function Onboarding(props: Props) {
   const [rate, setRate] = useState(existing?.rateKgPerWeek ?? 0.5)
   const [activity, setActivity] = useState<ActivityLevel>(existing?.activityLevel ?? 'stillasittande')
   const [sessions, setSessions] = useState(existing?.trainingSessionsPerWeek ?? 3)
-  const [goals, setGoals] = useState<MainGoal[]>(existing?.mainGoals ?? ['viktnedgang', 'behalla_muskler', 'fotbollskondition'])
+  const [goals, setGoals] = useState<MainGoal[]>(() => (existing?.mainGoals ?? ['viktnedgang']).filter((g) => g in GOAL_LABEL))
   const [notes, setNotes] = useState(existing?.healthNotes ?? '')
   const [tracked, setTracked] = useState<NutrientKey[]>(existing?.trackedNutrients ?? ['kcal', 'protein'])
   const [manual, setManual] = useState(currentGoal?.mode === 'manuellt')
@@ -129,9 +129,12 @@ export default function Onboarding(props: Props) {
               hint={n.goal && n.height ? `BMI vid målvikt: ${fmtDec(bmi(n.goal, n.height))}` : undefined} />
             <div>
               <p className="text-[15px] font-medium mb-1.5">Önskad takt</p>
-              <Segmented label="Önskad takt för viktnedgång" size="sm" value={String(rate)} onChange={(v) => setRate(Number(v))}
-                options={RATES.map((r) => ({ value: String(r), label: r === 0 ? 'Behåll' : `${fmtDec(r)} kg` }))} />
-              <p className="text-sm text-muted mt-1.5">Kilo per vecka. 0,25–0,5 kg/vecka brukar vara lättare att hålla och skonsamt för muskelmassan.</p>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Önskad takt per vecka">
+                {(RATES.includes(rate) ? RATES : [...RATES, rate].sort((a, b) => a - b)).map((r) => (
+                  <Chip key={r} selected={rate === r} onClick={() => setRate(r)}>{r === 0 ? 'Behåll' : `${fmtDec(r)} kg`}</Chip>
+                ))}
+              </div>
+              <p className="text-sm text-muted mt-1.5">Per vecka. 0,3–0,5 kg brukar vara lättast att hålla.</p>
             </div>
           </div>
         )}
@@ -150,7 +153,7 @@ export default function Onboarding(props: Props) {
               </div>
             </fieldset>
             <div className="flex items-center justify-between gap-3">
-              <div><p className="font-medium">Träningspass per vecka</p><p className="text-sm text-muted">Inklusive fotboll</p></div>
+              <p className="font-medium">Träningspass per vecka</p>
               <Stepper label="träningspass per vecka" value={sessions} onChange={(v) => setSessions(Math.max(0, Math.min(14, v)))} />
             </div>
           </div>

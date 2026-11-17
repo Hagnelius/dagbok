@@ -19,11 +19,13 @@ export const ACTIVITY_LEVEL_LABEL: Record<ActivityLevel, { label: string; help: 
   hog: { label: 'Mycket aktiv', help: 'Fysiskt arbete större delen av dagen' },
 }
 export const GOAL_LABEL: Record<MainGoal, string> = {
-  viktnedgang: 'Viktnedgång',
+  viktnedgang: 'Gå ner i vikt',
+  behalla_vikt: 'Behålla vikten',
   behalla_muskler: 'Behålla muskelmassa',
+  bygga_muskler: 'Bygga muskler',
   kondition: 'Förbättra konditionen',
-  fotbollskondition: 'Förbättra fotbollskonditionen',
-  hel_match: 'Orka ett helt fotbollspass eller en match',
+  battre_matvanor: 'Bättre matvanor',
+  mer_energi: 'Mer energi i vardagen',
 }
 export const NUTRIENT_LABEL: Record<NutrientKey, string> = { kcal: 'Energi (kcal)', protein: 'Protein', fat: 'Fett', carbs: 'Kolhydrater' }
 export const UNIT_LABEL: Record<Unit, string> = {
