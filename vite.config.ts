@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { defineConfig } from 'vite'
+import { livsmedelsverketPlugin } from './scripts/livsmedelsverket.ts'
 
 export default defineConfig({
   // Relativ bas gör att appen fungerar både i roten och i en undermapp (t.ex. GitHub Pages).
@@ -12,6 +13,7 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    livsmedelsverketPlugin(),
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: false,
@@ -35,7 +37,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,webmanifest,json}'],
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
       },

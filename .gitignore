@@ -25,3 +25,6 @@ dist-ssr
 e2e-shots
 __pycache__
 node-v*/
+
+# Lokal kopia av Livsmedelsverkets data (hämtas vid bygget)
+src/data/
