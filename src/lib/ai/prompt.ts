@@ -15,7 +15,7 @@ Dagens datum: ${today}. Klockan: ${now}.${weightKg ? ` Kroppsvikt: ${weightKg} k
 Svara ENDAST med JSON enligt detta schema:
 {
   "foods": [{
-    "name": "livsmedel på svenska", "amount": number, "unit": "g|ml|dl|st|portion|skiva|msk|tsk|krm",
+    "name": "livsmedel på svenska", "amount": number, "unit": "g|ml|dl|st|portion|skiva|msk|tsk|krm", "grams": number,
     "kcal": number, "protein": number, "fat": number, "carbs": number,
     "meal": "frukost|lunch|middag|mellanmal|dryck",
     "date": "YYYY-MM-DD (om nämnt)", "time": "HH:mm (om nämnt)",
@@ -35,6 +35,7 @@ Svara ENDAST med JSON enligt detta schema:
 
 Regler:
 - Dela upp måltider i enskilda livsmedel. Näringsvärden avser den angivna mängden, inte per 100 g.
+- "grams" är vikten i gram för hela mängden. Använd korta vanliga livsmedelsnamn, t.ex. "Kokt potatis", "Mellanmjölk", "Kycklingfilé stekt".
 - Använd svenska typvärden (Livsmedelsverket) och var realistisk. Ange "angivet" endast för sådant som står i texten.
 - Träningskalorier är nettoförbrukning utöver vila och alltid "uppskattat".
 - Hitta inte på mat eller träning som inte nämns.

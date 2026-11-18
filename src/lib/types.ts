@@ -235,6 +235,8 @@ export interface AiFoodItem extends Nutrition {
   name: string
   amount: number
   unit: Unit
+  /** AI:ns uppskattade vikt i gram för hela mängden (används mot Livsmedelsverket). */
+  grams?: number
   meal: MealType
   date?: string
   time?: string

@@ -24,6 +24,7 @@ export function normalizeAiResult(raw: unknown): AiResult {
   if (typeof raw === 'string') obj = parseJsonLoose(raw)
   if (!obj || typeof obj !== 'object') throw new Error('Svaret innehåller ingen giltig JSON.')
   const o = obj as Record<string, unknown>
+  const grams = (v: unknown) => { const g = num(v); return g !== undefined && g > 0 && g <= 5000 ? Math.round(g) : undefined }
   const foods: AiFoodItem[] = (Array.isArray(o.foods) ? o.foods : []).slice(0, 40).flatMap((f): AiFoodItem[] => {
     if (!f || typeof f !== 'object') return []
     const x = f as Record<string, unknown>
@@ -35,6 +36,7 @@ export function normalizeAiResult(raw: unknown): AiResult {
       name,
       amount: Math.max(0, num(x.amount) ?? 1),
       unit: UNIT_ALIASES[unitRaw] ?? pick(unitRaw, UNITS, 'portion'),
+      grams: grams(x.grams),
       kcal: Math.max(0, Math.round(num(x.kcal) ?? 0)),
       protein: Math.max(0, Math.round((num(x.protein) ?? 0) * 10) / 10),
       fat: num(x.fat),
