@@ -1,10 +1,11 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Button, Card, Chip, Empty, NumberField, PageHeader, Segmented, Select, Stepper, TextInput, cx, useToast } from '../components/ui'
 import { useToday } from '../hooks'
 import { addDays, formatShort, mealForTime, nowTime, relativeDayLabel, todayKey } from '../lib/dates'
 import { db } from '../lib/db'
-import { FOOD_DB, nutritionFor, searchFoodDb, type DbFood } from '../lib/foodDb'
+import { nutritionFor, searchFoodDb, type DbFood } from '../lib/foodDb'
+import { LV_SOURCE, loadLv, lvToDbFood, searchLv, type LvFood } from '../lib/livsmedelsverket'
 import { fmtDec, fmtInt, parseNum } from '../lib/format'
 import { MEAL_LABEL, UNIT_LABEL, unitText } from '../lib/labels'
 import { recipeNutrition, scale, sumNutrition } from '../lib/nutrition'
@@ -172,7 +173,9 @@ function QuickTab({ date, meal, time }: Ctx) {
 
 function SearchTab({ date, meal, time }: Ctx) {
   const [q, setQ] = useState('')
-  const [picked, setPicked] = useState<DbFood | null>(null)
+  const [picked, setPicked] = useState<(DbFood & { lvNr?: number }) | null>(null)
+  const [lv, setLv] = useState<LvFood[]>([])
+  useEffect(() => { let on = true; void loadLv().then((f) => on && setLv(f)); return () => { on = false } }, [])
   const own = useLiveQuery(() => db.foods.toArray(), []) ?? []
   const history = useLiveQuery(async () => {
     const s = q.trim().toLowerCase()
@@ -186,6 +189,7 @@ function SearchTab({ date, meal, time }: Ctx) {
   const s = q.trim().toLowerCase()
   const ownHits = s ? own.filter((f) => f.name.toLowerCase().includes(s)).slice(0, 8) : []
   const dbHits = s ? searchFoodDb(s) : []
+  const lvHits = useMemo(() => (s.length >= 2 ? searchLv(s, lv) : []), [s, lv])
 
   if (picked) return <DbFoodForm food={picked} ctx={{ date, meal, time }} onCancel={() => setPicked(null)} />
   return (
@@ -193,7 +197,7 @@ function SearchTab({ date, meal, time }: Ctx) {
       <input className="field" type="search" placeholder="Sök livsmedel, t.ex. ägg, kvarg, pasta" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Sök livsmedel" autoFocus enterKeyHint="search" />
       {!s && (
         <>
-          <p className="text-sm text-muted px-1">Sök bland dina favoriter, tidigare registreringar och en inbyggd lista med {FOOD_DB.length} vanliga livsmedel. Hittar du inte det du söker – använd <a href="#/mat/manuell" className="text-brand underline">Manuellt</a> eller <a href="#/ai" className="text-brand underline">Skriv eller prata in</a>.</p>
+          <p className="text-sm text-muted px-1">Sök bland dina livsmedel, tidigare registreringar och {lv.length ? `${fmtInt(lv.length)} livsmedel från Livsmedelsverket` : 'vanliga livsmedel'}.</p>
         </>
       )}
       {ownHits.length > 0 && <ResultGroup title="Mina livsmedel">{ownHits.map((f) => (
@@ -207,7 +211,11 @@ function SearchTab({ date, meal, time }: Ctx) {
       {dbHits.length > 0 && <ResultGroup title="Livsmedelslista (typvärden)">{dbHits.map((f) => (
         <ResultRow key={f.name} name={f.name} sub={`${fmtInt(f.per100.kcal)} kcal · ${fmtDec(f.per100.protein)} g protein per 100 ${f.liquid ? 'ml' : 'g'}`} onClick={() => setPicked(f)} chevron />
       ))}</ResultGroup>}
-      {s && !ownHits.length && !history.length && !dbHits.length && (
+      {lvHits.length > 0 && <ResultGroup title="Livsmedelsverket">{lvHits.map((f) => (
+        <ResultRow key={f.nr} name={f.name} sub={`${fmtInt(f.per100.kcal)} kcal · ${fmtDec(f.per100.protein)} g protein per 100 g`} onClick={() => setPicked(lvToDbFood(f))} chevron />
+      ))}</ResultGroup>}
+      {lv.length > 0 && <p className="text-xs text-muted px-1">Källa: {LV_SOURCE}.</p>}
+      {s && !ownHits.length && !history.length && !dbHits.length && !lvHits.length && (
         <Card><Empty>Inga träffar på "{q}". <button type="button" className="text-brand underline" onClick={() => navigate('/mat/manuell')}>Ange manuellt</button></Empty></Card>
       )}
     </div>
@@ -231,7 +239,7 @@ function ResultRow({ name, sub, onClick, chevron }: { name: string; sub: string;
   )
 }
 
-function DbFoodForm({ food, ctx, onCancel }: { food: DbFood; ctx: Ctx; onCancel: () => void }) {
+function DbFoodForm({ food, ctx, onCancel }: { food: DbFood & { lvNr?: number }; ctx: Ctx; onCancel: () => void }) {
   const toast = useToast()
   const units = (Object.keys(food.units) as Unit[])
   const [unit, setUnit] = useState<Unit>(food.defaultUnit)
@@ -241,7 +249,7 @@ function DbFoodForm({ food, ctx, onCancel }: { food: DbFood; ctx: Ctx; onCancel:
   const n = nutritionFor(food, a, unit)
   const add = async () => {
     if (!n || a <= 0) return
-    await addEntries([{ ...ctx, name: food.name, amount: a, unit, ...n, source: 'manuell', origin: 'uppskattat' }])
+    await addEntries([{ ...ctx, name: food.name, amount: a, unit, ...n, source: 'manuell', origin: food.lvNr ? 'beraknat' : 'uppskattat' }])
     if (fav) await saveFood({ name: food.name, amount: a, unit, ...n })
     toast(`${food.name} tillagd`)
     finishTo(ctx.date, todayKey())
@@ -249,7 +257,7 @@ function DbFoodForm({ food, ctx, onCancel }: { food: DbFood; ctx: Ctx; onCancel:
   return (
     <Card>
       <h2 className="text-lg font-bold">{food.name}</h2>
-      <p className="text-sm text-muted mb-3">Typvärden per 100 {food.liquid ? 'ml' : 'g'}: {food.per100.kcal} kcal, {fmtDec(food.per100.protein)} g protein, {fmtDec(food.per100.fat)} g fett, {fmtDec(food.per100.carbs)} g kolhydrater.</p>
+      <p className="text-sm text-muted mb-3">{food.lvNr ? 'Livsmedelsverket, per 100 g' : `Typvärden per 100 ${food.liquid ? 'ml' : 'g'}`}: {food.per100.kcal} kcal, {fmtDec(food.per100.protein)} g protein, {fmtDec(food.per100.fat)} g fett, {fmtDec(food.per100.carbs)} g kolhydrater.</p>
       <div className="grid grid-cols-2 gap-3">
         <NumberField label="Mängd" value={amount} onChange={setAmount} autoFocus />
         <Select label="Enhet" value={unit} onChange={setUnit} options={units.map((u) => ({ value: u, label: `${UNIT_LABEL[u]}${u !== 'g' && u !== 'ml' ? ` (${fmtDec(food.units[u]!)} g)` : ''}` }))} />

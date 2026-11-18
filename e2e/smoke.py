@@ -65,7 +65,7 @@ with sync_playwright() as p:
     shot(page, "01-intro")
     page.get_by_role("button", name="Fortsätt").click()
     page.get_by_label("Målvikt").fill("85")
-    page.get_by_role("radio", name="1 kg").click()
+    page.get_by_role("button", name="1 kg", exact=True).click()
     page.get_by_role("button", name="Fortsätt").click()
     page.get_by_text("Lätt aktiv").click()
     page.get_by_role("button", name="Fortsätt").click()
@@ -110,7 +110,7 @@ with sync_playwright() as p:
     # --- Byte av enhet räknar om näringen (mellanmjölk 2 dl → 2 msk) ---
     page.goto(URL + "#/mat/sok")
     page.get_by_label("Sök livsmedel").fill("mellanmjölk")
-    page.get_by_role("button", name=re.compile("^Mellanmjölk")).click()
+    page.get_by_role("button", name=re.compile("^Mellanmjölk")).first.click()
     page.get_by_role("button", name=re.compile("Lägg till i")).click()
     page.get_by_role("button", name=re.compile("^Mellanmjölk 2 dl")).click()
     dlg = page.get_by_role("dialog")
@@ -122,6 +122,18 @@ with sync_playwright() as p:
     expect(dlg.get_by_label("Kalorier")).to_have_value("28")
     dlg.get_by_role("button", name="Spara", exact=True).click()
     expect(page.get_by_text("28 kcal", exact=True)).to_be_visible()
+
+    # --- Livsmedelsverket i sökningen, med källa ---
+    page.goto(URL + "#/mat/sok")
+    page.get_by_label("Sök livsmedel").fill("kvarg naturell")
+    lv = page.get_by_role("region", name="Livsmedelsverket")
+    expect(lv).to_be_visible()
+    expect(page.get_by_text(re.compile("Källa: Livsmedelsverkets livsmedelsdatabas"))).to_be_visible()
+    lv.get_by_role("button", name=re.compile("^Kvarg naturell fett 0,2%")).click()
+    expect(page.get_by_text(re.compile("Livsmedelsverket, per 100 g"))).to_be_visible()
+    shot(page, "lv-kvarg")
+    page.get_by_role("button", name=re.compile("Lägg till i")).click()
+    expect(page.get_by_text("Kvarg naturell fett 0,2%").first).to_be_visible()
 
     # --- AI: skriv in, granska, inget sparat förrän godkänt ---
     page.goto(URL + "#/ai")
@@ -196,6 +208,18 @@ with sync_playwright() as p:
 
     page.goto(URL + "#/installningar/ai")
     page.get_by_text("Lokal tolkning").first.click()
+
+    # --- + vid en måltid: tolkningsrutan öppnas och allt hamnar i den måltiden ---
+    page.goto(URL + "#/")
+    page.get_by_role("link", name="Lägg till i mellanmål").click()
+    expect(page.get_by_label("Beskriv vad du ätit eller hur du tränat")).to_be_focused()
+    expect(page.get_by_text("Idag · Mellanmål")).to_be_visible()
+    page.get_by_label("Beskriv vad du ätit eller hur du tränat").fill("Till lunch 2 ägg")
+    page.get_by_role("button", name="Analysera", exact=True).click()
+    expect(page.get_by_role("heading", name="Granska förslaget")).to_be_visible()
+    expect(page.get_by_label("Måltid").first).to_have_value("mellanmal")
+    page.get_by_role("button", name=re.compile("Godkänn och spara allt")).click()
+    expect(page.locator('section[aria-labelledby="meal-mellanmal"]').get_by_text("Ägg").first).to_be_visible()
 
     # --- Träning via mall ---
     page.goto(URL + "#/traning")

@@ -14,6 +14,7 @@ import { navigate } from '../router'
 import { rescale } from '../lib/units'
 import { prepareImage, type PreparedImage } from '../lib/ai/image'
 import { focusAtEnd, updateAndFocus, updateAndOpenCamera } from '../lib/keyboard'
+import { enrichWithLv, loadLv } from '../lib/livsmedelsverket'
 import { uid } from '../lib/db'
 
 interface Review { id: string; provider: string; result: AiResult; foods: Array<AiFoodItem & { keep: boolean }>; workouts: Array<AiWorkoutItem & { keep: boolean }> }
@@ -58,6 +59,8 @@ export default function AiPage({ date, mode: modeParam, meal: mealParam }: { dat
       return
     }
     if (meal) result = { ...result, foods: result.foods.map((f) => ({ ...f, meal })) }
+    // Livsmedelsverkets värden där livsmedlet känns igen säkert (den lokala tolkningen har redan typvärden).
+    if (providerId !== 'lokal' && result.foods.length) result = enrichWithLv(result, await loadLv())
     const id = await saveInterpretation(inputText, providerId, result, isPhoto && photo ? { thumb: photo.thumb } : undefined)
     setReview({ id, provider: providerId, result, foods: result.foods.map((f) => ({ ...f, keep: true })), workouts: result.workouts.map((w) => ({ ...w, keep: true })) })
     setFollowUp('')
@@ -337,7 +340,7 @@ function ReviewView({ review, setReview, date, today, followUp, setFollowUp, onS
                   <Select label="Måltid" value={f.meal} onChange={(m: MealType) => updFood(i, { meal: m })} options={MEALS.map((m) => ({ value: m, label: MEAL_LABEL[m] }))} />
                   <div className="text-sm text-muted self-end pb-2 tabular">{f.fat !== undefined && <>Fett {fmtDec(f.fat)} g<br /></>}{f.carbs !== undefined && <>Kolh. {fmtDec(f.carbs)} g</>}</div>
                 </div>
-                {f.note && <p className="text-sm text-warn">{f.note}</p>}
+                {f.note && <p className={cx('text-sm', f.note.startsWith('Livsmedelsverket') ? 'text-muted' : 'text-warn')}>{f.note}</p>}
                 {f.date && f.date !== date && <p className="text-sm">Datum: {formatShort(f.date)}</p>}
               </div>
             </div>
