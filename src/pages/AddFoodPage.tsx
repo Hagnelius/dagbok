@@ -189,7 +189,7 @@ function SearchTab({ date, meal, time }: Ctx) {
   const s = q.trim().toLowerCase()
   const ownHits = s ? own.filter((f) => f.name.toLowerCase().includes(s)).slice(0, 8) : []
   const dbHits = s ? searchFoodDb(s) : []
-  const lvHits = useMemo(() => (s.length >= 2 ? searchLv(s, lv) : []), [s, lv])
+  const lvHits = s.length >= 2 ? searchLv(s, lv) : []
 
   if (picked) return <DbFoodForm food={picked} ctx={{ date, meal, time }} onCancel={() => setPicked(null)} />
   return (

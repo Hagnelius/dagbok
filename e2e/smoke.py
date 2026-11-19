@@ -135,6 +135,25 @@ with sync_playwright() as p:
     page.get_by_role("button", name=re.compile("Lägg till i")).click()
     expect(page.get_by_text("Kvarg naturell fett 0,2%").first).to_be_visible()
 
+    # --- Svep åt vänster för att ta bort en post, med ångra ---
+    def swipe(name, dist):
+        row = page.get_by_role("button", name=re.compile("^" + re.escape(name))).first
+        row.evaluate("el => el.scrollIntoView({block: 'center'})")
+        box = row.bounding_box()
+        y = box["y"] + box["height"] / 2; x0 = box["x"] + box["width"] - 20
+        page.mouse.move(x0, y); page.mouse.down(); page.mouse.move(x0 - dist, y, steps=10); page.mouse.up()
+    swipe("Kvarg naturell", 120)
+    expect(page.get_by_role("button", name="Ta bort Kvarg naturell fett 0,2%")).to_be_visible()
+    shot(page, "16-svep-ta-bort")
+    page.get_by_role("button", name="Ta bort Kvarg naturell fett 0,2%").click()
+    expect(page.get_by_text("Kvarg naturell fett 0,2% togs bort")).to_be_visible()
+    page.get_by_role("button", name="Ångra").click()
+    expect(page.get_by_role("button", name=re.compile("^Kvarg naturell")).first).to_be_visible()
+    swipe("Kvarg naturell", 330)  # hela vägen tar bort direkt
+    expect(page.get_by_role("button", name=re.compile("^Kvarg naturell"))).to_have_count(0)
+    swipe("Kycklingwok", 120); page.get_by_role("button", name=re.compile("^Kycklingwok")).first.click()  # tryck stänger
+    expect(page.get_by_role("dialog")).to_have_count(0)
+
     # --- AI: skriv in, granska, inget sparat förrän godkänt ---
     page.goto(URL + "#/ai")
     expect(page.get_by_label("Beskriv vad du ätit eller hur du tränat")).to_be_focused()  # tangentbordet direkt
