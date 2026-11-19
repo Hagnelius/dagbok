@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Button, Card, Empty, OriginBadge, Progress, SectionTitle, Sheet, TextInput, cx, useConfirm, useToast } from '../components/ui'
 import EntryEditor from '../components/EntryEditor'
@@ -24,6 +24,14 @@ export default function DayPage({ date }: { date: string }) {
   const [editEntry, setEditEntry] = useState<FoodEntry | null>(null)
   const [editWorkout, setEditWorkout] = useState<Workout | null>(null)
   const [mealMenu, setMealMenu] = useState<MealType | null>(null)
+  // Rad som är svepad åt vänster så att Ta bort syns (en i taget).
+  const [swiped, setSwiped] = useState<string | null>(null)
+  const toast = useToast()
+  const removeEntry = async (e: FoodEntry) => {
+    setSwiped(null)
+    await deleteEntry(e.id)
+    toast(`${e.name} togs bort`, { label: 'Ångra', run: () => { void db.entries.add(e) } })
+  }
   const isToday = date === today
   const q = isToday ? '' : `?datum=${date}`
 
@@ -150,7 +158,7 @@ export default function DayPage({ date }: { date: string }) {
               {list.length > 0 && (
                 <Card className="!p-0 overflow-hidden" as="div">
                   <ul className="divide-y divide-line">
-                    {list.map((e) => <EntryRow key={e.id} e={e} onOpen={() => setEditEntry(e)} />)}
+                    {list.map((e) => <EntryRow key={e.id} e={e} open={swiped === e.id} onSwipe={(o) => setSwiped(o ? e.id : null)} onOpen={() => { if (swiped) setSwiped(null); else setEditEntry(e) }} onDelete={() => removeEntry(e)} />)}
                   </ul>
                 </Card>
               )}
@@ -216,10 +224,59 @@ function QuickLink({ href, icon, label, tone }: { href: string; icon: string; la
   )
 }
 
-function EntryRow({ e, onOpen }: { e: FoodEntry; onOpen: () => void }) {
+const DELETE_W = 88
+
+/**
+ * Matpost i dagslistan. Svep åt vänster för att visa Ta bort, eller svep hela vägen för att ta bort direkt.
+ * Ett tryck öppnar posten för redigering. Borttagning kan ångras i meddelandet som visas.
+ */
+function EntryRow({ e, open, onOpen, onSwipe, onDelete }: { e: FoodEntry; open: boolean; onOpen: () => void; onSwipe: (open: boolean) => void; onDelete: () => void }) {
+  const [drag, setDrag] = useState<number | null>(null)
+  const start = useRef<{ x: number; y: number; base: number; swiping: boolean; id: number } | null>(null)
+  const swiped = useRef(false)
+  const liRef = useRef<HTMLLIElement>(null)
+  const offset = drag ?? (open ? -DELETE_W : 0)
+
+  const down = (ev: ReactPointerEvent) => {
+    if (ev.pointerType === 'mouse' && ev.button !== 0) return
+    start.current = { x: ev.clientX, y: ev.clientY, base: open ? -DELETE_W : 0, swiping: false, id: ev.pointerId }
+  }
+  const move = (ev: ReactPointerEvent) => {
+    const s = start.current
+    if (!s || s.id !== ev.pointerId) return
+    const dx = ev.clientX - s.x, dy = ev.clientY - s.y
+    if (!s.swiping) {
+      if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { start.current = null; return } // rullning
+      if (Math.abs(dx) < 8) return
+      s.swiping = true
+      ;(ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId)
+    }
+    const width = liRef.current?.offsetWidth ?? 360
+    setDrag(Math.max(-width, Math.min(0, s.base + dx)))
+  }
+  const up = () => {
+    const s = start.current
+    start.current = null
+    if (!s?.swiping || drag === null) { setDrag(null); return }
+    swiped.current = true
+    setTimeout(() => { swiped.current = false }, 0)
+    const width = liRef.current?.offsetWidth ?? 360
+    setDrag(null)
+    if (drag < -width * 0.55) onDelete()
+    else onSwipe(drag < -DELETE_W / 2)
+  }
+
   return (
-    <li>
-      <button type="button" onClick={onOpen} className="w-full flex items-center gap-3 px-4 py-3 text-left min-h-14 active:bg-card-2">
+    <li ref={liRef} className="relative overflow-hidden">
+      <button type="button" onClick={onDelete} aria-label={`Ta bort ${e.name}`}
+        className="absolute inset-y-0 right-0 bg-danger text-bg font-semibold flex items-center justify-end pr-5"
+        style={{ width: Math.max(DELETE_W, -offset) }} tabIndex={open ? 0 : -1}>
+        Ta bort
+      </button>
+      <button type="button" onClick={() => { if (!swiped.current) onOpen() }}
+        onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
+        className={cx('relative w-full flex items-center gap-3 px-4 py-3 text-left min-h-14 bg-card active:bg-card-2 touch-pan-y select-none', drag === null && 'transition-transform duration-200')}
+        style={{ transform: `translateX(${offset}px)` }}>
         <span className="flex-1 min-w-0">
           <span className="block font-semibold truncate">{e.name}</span>
           <span className="block text-sm text-muted truncate">
